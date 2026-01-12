@@ -1,0 +1,16 @@
+{
+  "name": "apptuner-relay",
+  "version": "0.1.0",
+  "description": "Cloudflare Workers WebSocket relay for Apptuner",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241127.0",
+    "wrangler": "^3.0.0",
+    "typescript": "^5.5.0"
+  }
+}

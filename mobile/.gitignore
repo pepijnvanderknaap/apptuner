@@ -1,0 +1,28 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# React Native
+.metro-cache/
+.metro-health-check*
+
+# iOS
+ios/build/
+ios/Pods/
+ios/*.xcworkspace
+ios/*.xcuserstate
+*.pbxuser
+*.perspectivev3
+
+# Android
+android/app/build/
+android/.gradle/
+*.apk
+*.aab
+
+# Misc
+.DS_Store
+*.log
+.env
+.env.local
