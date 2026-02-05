@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ConnectionManager, generateSessionId } from './services/connection';
 import { ProjectManager } from './services/project-manager';
+import { ConsolePanel, ConsoleLog } from './components/ConsolePanel';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -12,6 +13,7 @@ function BrowserApp() {
   const [connectedDevices, setConnectedDevices] = useState<number>(0);
   const [projectPath, setProjectPath] = useState<string>('public');
   const [autoReload, setAutoReload] = useState<boolean>(false);
+  const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
 
   const connectionRef = useRef<ConnectionManager | null>(null);
   const projectManagerRef = useRef<ProjectManager | null>(null);
@@ -53,6 +55,18 @@ function BrowserApp() {
           setConnectedDevices(1);
         } else {
           setConnectedDevices(0);
+        }
+      });
+
+      // Subscribe to console log messages from mobile device
+      connection.onMessage((data) => {
+        if (data.type === 'console_log') {
+          const consoleLog: ConsoleLog = {
+            level: data.payload.level || 'log',
+            args: data.payload.args || [],
+            timestamp: data.payload.timestamp || Date.now(),
+          };
+          setConsoleLogs((prev) => [...prev, consoleLog]);
         }
       });
 
@@ -124,6 +138,10 @@ function BrowserApp() {
       setAutoReload(true);
       console.log('🚀 Auto-reload started');
     }
+  };
+
+  const clearLogs = () => {
+    setConsoleLogs([]);
   };
 
   const getConnectionStatusText = (): string => {
@@ -264,6 +282,16 @@ function BrowserApp() {
           </button>
         </div>
       )}
+
+      {/* Console Panel */}
+      <div style={{
+        marginTop: '20px',
+        height: '400px',
+        minHeight: '300px',
+        maxHeight: '600px',
+      }}>
+        <ConsolePanel logs={consoleLogs} onClear={clearLogs} />
+      </div>
 
       <div className="spacer" />
 
