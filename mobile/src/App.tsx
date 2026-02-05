@@ -13,11 +13,17 @@ import {
   StatusBar,
   ActivityIndicator,
   SafeAreaView,
+  LogBox,
 } from 'react-native';
 import QRCodeScanner from './components/QRCodeScanner';
 import ConnectionStatus from './components/ConnectionStatus';
+import ErrorOverlay from './components/ErrorOverlay';
 import {RelayConnection} from './services/relay';
 import {BundleExecutor} from './services/executor';
+import {ConsoleInterceptor} from './services/console-interceptor';
+
+// Suppress ViewPropTypes deprecation warning from react-native-camera
+LogBox.ignoreLogs(['ViewPropTypes will be removed from React-Native']);
 
 type AppState = 'scanning' | 'connecting' | 'connected' | 'error';
 
@@ -27,9 +33,12 @@ export default function App() {
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [bundleLoaded, setBundleLoaded] = useState(false);
   const [bundleVersion, setBundleVersion] = useState(0);
+  const [showErrorOverlay, setShowErrorOverlay] = useState(false);
+  const [errorStack, setErrorStack] = useState<string>('');
 
   const connectionRef = useRef<RelayConnection | null>(null);
   const executorRef = useRef<BundleExecutor | null>(null);
+  const consoleInterceptorRef = useRef<ConsoleInterceptor | null>(null);
 
   // Handle QR code scan
   const handleQRScan = async (data: string) => {
@@ -72,6 +81,14 @@ export default function App() {
       const executor = new BundleExecutor();
       executorRef.current = executor;
 
+      // Initialize console interceptor
+      const interceptor = new ConsoleInterceptor();
+      consoleInterceptorRef.current = interceptor;
+      interceptor.start((entry) => {
+        // Send console logs to desktop via relay
+        connection.sendLog(entry.level, ...entry.args);
+      });
+
       // Subscribe to connection status
       connection.onStatusChange(status => {
         if (status === 'connected') {
@@ -97,12 +114,14 @@ export default function App() {
           connection.sendAck(true);
         } catch (error) {
           console.error('Bundle execution error:', error);
-          console.error('Error type:', typeof error);
-          console.error('Error details:', JSON.stringify(error, null, 2));
           const errorMsg = error instanceof Error ? error.message : String(error);
-          console.error('Error message:', errorMsg);
+          const stack = error instanceof Error ? error.stack || '' : '';
+
+          // Show error overlay
           setErrorMessage(errorMsg);
-          setAppState('error');
+          setErrorStack(stack);
+          setShowErrorOverlay(true);
+
           connection.sendAck(false, errorMsg);
         }
       });
@@ -126,10 +145,16 @@ export default function App() {
       executorRef.current.cleanup();
       executorRef.current = null;
     }
+    if (consoleInterceptorRef.current) {
+      consoleInterceptorRef.current.stop();
+      consoleInterceptorRef.current = null;
+    }
     setAppState('scanning');
     setSessionId(null);
     setBundleLoaded(false);
     setErrorMessage('');
+    setShowErrorOverlay(false);
+    setErrorStack('');
   };
 
   // Render based on app state
@@ -154,6 +179,34 @@ export default function App() {
         );
 
       case 'connected':
+        // Full-screen mode when bundle is loaded
+        if (bundleLoaded) {
+          return (
+            <View style={styles.fullScreenContainer}>
+              {/* Bundled app takes full screen */}
+              {(() => {
+                try {
+                  const BundledApp = (global as any).App;
+                  if (!BundledApp) {
+                    return <Text style={{color: 'red'}}>Error: global.App not found</Text>;
+                  }
+                  return <BundledApp key={bundleVersion} />;
+                } catch (err) {
+                  return <Text style={{color: 'red'}}>Render error: {String(err)}</Text>;
+                }
+              })()}
+
+              {/* Small floating disconnect button */}
+              <TouchableOpacity
+                style={styles.floatingDisconnectButton}
+                onPress={handleDisconnect}>
+                <Text style={styles.floatingDisconnectText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          );
+        }
+
+        // Waiting for bundle
         return (
           <View style={styles.container}>
             <ConnectionStatus
@@ -162,29 +215,10 @@ export default function App() {
               bundleLoaded={bundleLoaded}
             />
 
-            {!bundleLoaded && (
-              <View style={styles.waitingContainer}>
-                <ActivityIndicator size="small" color="#007aff" />
-                <Text style={styles.waitingText}>Waiting for bundle...</Text>
-              </View>
-            )}
-
-            {bundleLoaded && (
-              <View style={styles.bundleContainer}>
-                {/* Bundle renders here */}
-                {(() => {
-                  try {
-                    const BundledApp = (global as any).App;
-                    if (!BundledApp) {
-                      return <Text style={{color: 'red'}}>Error: global.App not found</Text>;
-                    }
-                    return <BundledApp key={bundleVersion} />;
-                  } catch (err) {
-                    return <Text style={{color: 'red'}}>Render error: {String(err)}</Text>;
-                  }
-                })()}
-              </View>
-            )}
+            <View style={styles.waitingContainer}>
+              <ActivityIndicator size="small" color="#007aff" />
+              <Text style={styles.waitingText}>Waiting for bundle...</Text>
+            </View>
 
             <TouchableOpacity
               style={styles.disconnectButton}
@@ -213,9 +247,22 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+    <SafeAreaView style={bundleLoaded ? styles.fullScreenSafeArea : styles.safeArea}>
+      <StatusBar
+        barStyle={bundleLoaded ? "light-content" : "dark-content"}
+        backgroundColor="transparent"
+        translucent={bundleLoaded}
+      />
       {renderContent()}
+
+      {/* Error Overlay */}
+      {showErrorOverlay && (
+        <ErrorOverlay
+          error={errorMessage}
+          stack={errorStack}
+          onDismiss={() => setShowErrorOverlay(false)}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -225,12 +272,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  fullScreenSafeArea: {
+    flex: 1,
+    backgroundColor: '#000000',
+  },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
     backgroundColor: '#ffffff',
+  },
+  fullScreenContainer: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  floatingDisconnectButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  floatingDisconnectText: {
+    color: '#ffffff',
+    fontSize: 20,
+    fontWeight: '600',
   },
   title: {
     fontSize: 32,
