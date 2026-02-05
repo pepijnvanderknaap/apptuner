@@ -4,6 +4,9 @@
  * Executes JavaScript bundles from desktop app in a safe environment
  */
 
+import React from 'react';
+import * as ReactNative from 'react-native';
+
 export class BundleExecutor {
   private lastBundle: string | null = null;
   private executionContext: any = null;
@@ -18,19 +21,31 @@ export class BundleExecutor {
       // Store for potential re-execution
       this.lastBundle = bundleCode;
 
-      // Create execution context with React Native globals
-      const context = this.createExecutionContext();
+      console.log('[Executor] Bundle code length:', bundleCode.length);
 
-      // Execute the bundle
-      // The bundle is wrapped in an IIFE by the bundler, so we can eval it directly
-      const result = eval(bundleCode);
+      // Create a function that executes the bundle with React and ReactNative in scope
+      // The bundle should define a function called App and return it
+      const wrappedCode = `
+        ${bundleCode}
+        return App;
+      `;
 
-      this.executionContext = context;
+      // Use Function constructor instead of eval for better scope control
+      const executorFn = new Function('React', 'ReactNative', wrappedCode);
+
+      // Execute and get the App component
+      const AppComponent = executorFn(React, ReactNative);
+
+      // Store on global so the mobile app can access it
+      (global as any).App = AppComponent;
 
       console.log('[Executor] Bundle executed successfully');
-      return result;
+      console.log('[Executor] App component type:', typeof AppComponent);
+
     } catch (error) {
       console.error('[Executor] Execution error:', error);
+      console.error('[Executor] Error type:', typeof error);
+      console.error('[Executor] Error message:', error instanceof Error ? error.message : String(error));
       throw error;
     }
   }

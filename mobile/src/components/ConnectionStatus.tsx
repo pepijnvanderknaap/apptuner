@@ -5,7 +5,7 @@
  */
 
 import React from 'react';
-import {StyleSheet, View, Text} from 'react';
+import {StyleSheet, View, Text} from 'react-native';
 
 interface Props {
   status: 'connected' | 'disconnected' | 'error';

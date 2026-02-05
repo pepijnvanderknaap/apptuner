@@ -38,7 +38,7 @@ export class ProjectManager {
 
     // Create file watcher
     const watcherConfig: WatcherConfig = {
-      projectPath: this.config.path,
+      projectPath: `${this.config.path}/${this.config.entryPoint || 'index.js'}`,
     };
 
     this.watcher = new FileWatcher(watcherConfig);
@@ -110,9 +110,15 @@ export class ProjectManager {
       // For now, read from the test-app directory
       // In production, this would bundle the actual project
       const entryPoint = this.config.entryPoint || 'App.tsx';
-      const filePath = `${this.config.path}/${entryPoint}`;
+      let filePath = `/${this.config.path}/${entryPoint}`;
 
-      const response = await fetch(filePath);
+      // Remove 'public/' prefix since Vite serves public files at root
+      if (filePath.startsWith('/public/')) {
+        filePath = filePath.replace('/public/', '/');
+      }
+
+      // Add cache buster to ensure we get latest content
+      const response = await fetch(filePath + '?t=' + Date.now());
       if (!response.ok) {
         throw new Error(`Failed to read ${filePath}`);
       }

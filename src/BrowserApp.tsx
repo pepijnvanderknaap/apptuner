@@ -10,7 +10,7 @@ function BrowserApp() {
   const [sessionUrl, setSessionUrl] = useState<string>('');
   const [sessionId, setSessionId] = useState<string>('');
   const [connectedDevices, setConnectedDevices] = useState<number>(0);
-  const [projectPath, setProjectPath] = useState<string>('/test-app');
+  const [projectPath, setProjectPath] = useState<string>('public');
   const [autoReload, setAutoReload] = useState<boolean>(false);
 
   const connectionRef = useRef<ConnectionManager | null>(null);
@@ -32,7 +32,7 @@ function BrowserApp() {
       // Generate session ID and URL
       const sid = generateSessionId();
       setSessionId(sid);
-      const url = `ws://192.168.178.157:8787/mobile/${sid}`;
+      const url = `apptuner://connect/${sid}`;
       setSessionUrl(url);
 
       // Initialize connection manager
@@ -57,7 +57,7 @@ function BrowserApp() {
       });
 
       // Connect to relay
-      await connection.connect('ws://192.168.178.157:8787');
+      await connection.connect('ws://192.168.178.48:8787');
 
       console.log('Connected to relay server');
 
@@ -116,7 +116,7 @@ function BrowserApp() {
       const projectManager = new ProjectManager({
         path: projectPath,
         name: 'Test Project',
-        entryPoint: 'App.tsx',
+        entryPoint: 'test-bundle.js',
       });
 
       await projectManager.start(connectionRef.current);

@@ -1,41 +1,42 @@
 /**
  * QR Code Scanner Component
  *
- * Simplified scanner using react-native-qrcode-scanner
+ * Uses react-native-camera directly for QR scanning
  */
 
-import React from 'react';
-import {StyleSheet, View, Text} from 'react';
-import QRCodeScanner from 'react-native-qrcode-scanner';
+import React, {useState} from 'react';
+import {StyleSheet, View, Text} from 'react-native';
+import {RNCamera} from 'react-native-camera';
 
 interface Props {
   onScan: (data: string) => void;
 }
 
 export default function Scanner({onScan}: Props) {
-  const handleScan = (e: any) => {
-    if (e.data) {
-      onScan(e.data);
+  const [scanned, setScanned] = useState(false);
+
+  const handleBarCodeRead = (event: any) => {
+    if (!scanned && event.data) {
+      setScanned(true);
+      onScan(event.data);
     }
   };
 
   return (
     <View style={styles.container}>
-      <QRCodeScanner
-        onRead={handleScan}
-        topContent={
-          <Text style={styles.instruction}>
-            Point your camera at the QR code
-          </Text>
-        }
-        bottomContent={
-          <Text style={styles.hint}>
-            Open Apptuner on your computer to get started
-          </Text>
-        }
-        cameraStyle={styles.camera}
-        containerStyle={styles.scannerContainer}
+      <Text style={styles.instruction}>
+        Point your camera at the QR code
+      </Text>
+      <RNCamera
+        style={styles.camera}
+        type={RNCamera.Constants.Type.back}
+        onBarCodeRead={handleBarCodeRead}
+        barCodeTypes={[RNCamera.Constants.BarCodeType.qr]}
+        captureAudio={false}
       />
+      <Text style={styles.hint}>
+        Open Apptuner on your computer to get started
+      </Text>
     </View>
   );
 }
@@ -44,13 +45,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   scannerContainer: {
     flex: 1,
   },
   camera: {
-    height: 300,
-    width: 300,
+    height: 400,
+    width: 400,
     borderRadius: 16,
     overflow: 'hidden',
   },

@@ -26,6 +26,7 @@ export default function App() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [bundleLoaded, setBundleLoaded] = useState(false);
+  const [bundleVersion, setBundleVersion] = useState(0);
 
   const connectionRef = useRef<RelayConnection | null>(null);
   const executorRef = useRef<BundleExecutor | null>(null);
@@ -58,10 +59,10 @@ export default function App() {
   // Connect to Cloudflare relay
   const connectToRelay = async (sid: string) => {
     try {
-      // Use production relay URL (or localhost for development)
+      // Use production relay URL (or local network IP for development)
       const relayUrl =
         __DEV__
-          ? 'ws://localhost:8787'
+          ? 'ws://192.168.178.48:8787'
           : 'wss://apptuner-relay.your-subdomain.workers.dev';
 
       const connection = new RelayConnection(sid, relayUrl);
@@ -90,15 +91,19 @@ export default function App() {
           await executor.execute(bundle.code);
 
           setBundleLoaded(true);
+          setBundleVersion(v => v + 1); // Force re-render with new bundle
 
           // Send acknowledgment
           connection.sendAck(true);
         } catch (error) {
           console.error('Bundle execution error:', error);
-          setErrorMessage(
-            error instanceof Error ? error.message : 'Bundle execution failed',
-          );
-          connection.sendAck(false, error instanceof Error ? error.message : undefined);
+          console.error('Error type:', typeof error);
+          console.error('Error details:', JSON.stringify(error, null, 2));
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          console.error('Error message:', errorMsg);
+          setErrorMessage(errorMsg);
+          setAppState('error');
+          connection.sendAck(false, errorMsg);
         }
       });
 
@@ -167,9 +172,17 @@ export default function App() {
             {bundleLoaded && (
               <View style={styles.bundleContainer}>
                 {/* Bundle renders here */}
-                <Text style={styles.bundleLoadedText}>
-                  ✓ Bundle loaded and running
-                </Text>
+                {(() => {
+                  try {
+                    const BundledApp = (global as any).App;
+                    if (!BundledApp) {
+                      return <Text style={{color: 'red'}}>Error: global.App not found</Text>;
+                    }
+                    return <BundledApp key={bundleVersion} />;
+                  } catch (err) {
+                    return <Text style={{color: 'red'}}>Render error: {String(err)}</Text>;
+                  }
+                })()}
               </View>
             )}
 

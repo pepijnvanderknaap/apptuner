@@ -31,6 +31,8 @@ export class FileWatcher {
   private onChange: ((filePath: string) => void) | null = null;
   private debounceTimer: NodeJS.Timeout | null = null;
   private isWatching = false;
+  private pollInterval: NodeJS.Timeout | null = null;
+  private lastContent: string | null = null;
 
   constructor(config: WatcherConfig) {
     this.config = {
@@ -54,9 +56,57 @@ export class FileWatcher {
     console.log(`📁 Watching: ${this.config.projectPath}`);
     console.log(`🔍 Extensions: ${this.config.extensions?.join(', ')}`);
 
-    // TODO: Implement actual file watching
-    // For now, this is a placeholder that will be implemented when we move to Tauri
-    // In Tauri, we'll use the Rust notify crate for efficient file watching
+    // Start polling for changes (browser-based polling)
+    this.startPolling();
+  }
+
+  /**
+   * Start polling for file changes
+   */
+  private startPolling(): void {
+    // Poll every 2 seconds
+    this.pollInterval = setInterval(() => {
+      this.checkForChanges();
+    }, 2000);
+
+    // Do initial check
+    this.checkForChanges();
+  }
+
+  /**
+   * Check if file has changed
+   */
+  private async checkForChanges(): Promise<void> {
+    try {
+      // For browser environment, we'll watch a specific file
+      // In the future with Tauri, this will be proper file system watching
+      // Remove 'public/' prefix since Vite serves public files at root
+      let filePath = `/${this.config.projectPath}`;
+      if (filePath.startsWith('/public/')) {
+        filePath = filePath.replace('/public/', '/');
+      }
+      const response = await fetch(filePath + '?t=' + Date.now()); // Cache bust
+
+      if (!response.ok) {
+        return;
+      }
+
+      const content = await response.text();
+
+      if (this.lastContent === null) {
+        // First read, just store it
+        this.lastContent = content;
+        return;
+      }
+
+      if (content !== this.lastContent) {
+        console.log(`📝 File changed: ${filePath}`);
+        this.lastContent = content;
+        this.handleChange(filePath);
+      }
+    } catch (error) {
+      // Silently fail - file might not exist yet
+    }
   }
 
   /**
@@ -72,8 +122,14 @@ export class FileWatcher {
       this.debounceTimer = null;
     }
 
+    if (this.pollInterval) {
+      clearInterval(this.pollInterval);
+      this.pollInterval = null;
+    }
+
     this.isWatching = false;
     this.onChange = null;
+    this.lastContent = null;
 
     console.log('📁 File watcher stopped');
   }
