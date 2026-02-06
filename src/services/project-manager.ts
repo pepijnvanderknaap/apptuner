@@ -5,17 +5,20 @@
 
 import { FileWatcher, WatcherConfig } from './watcher';
 import { ConnectionManager } from './connection';
+import { MetroClient } from './metro';
 
 export interface ProjectConfig {
   path: string;
   name: string;
   entryPoint?: string;
+  useMetro?: boolean; // If true, use Metro bundler; if false, use simple file reading
 }
 
 export class ProjectManager {
   private config: ProjectConfig;
   private watcher: FileWatcher | null = null;
   private connection: ConnectionManager | null = null;
+  private metro: MetroClient | null = null;
   private isActive = false;
 
   constructor(config: ProjectConfig) {
@@ -35,6 +38,22 @@ export class ProjectManager {
     this.isActive = true;
 
     console.log(`🚀 Starting project manager for: ${this.config.name}`);
+
+    // Initialize Metro if enabled
+    if (this.config.useMetro) {
+      try {
+        console.log('📦 Initializing Metro bundler...');
+        this.metro = new MetroClient({
+          projectPath: this.config.path,
+          entryPoint: this.config.entryPoint || 'App.tsx',
+        });
+        await this.metro.connect();
+        console.log('✅ Metro bundler ready');
+      } catch (error) {
+        console.warn('⚠️  Metro connection failed, will fall back to simple file reading:', error);
+        this.metro = null;
+      }
+    }
 
     // Create file watcher
     const watcherConfig: WatcherConfig = {
@@ -66,6 +85,11 @@ export class ProjectManager {
       this.watcher = null;
     }
 
+    if (this.metro) {
+      this.metro.disconnect();
+      this.metro = null;
+    }
+
     this.connection = null;
     this.isActive = false;
 
@@ -84,8 +108,25 @@ export class ProjectManager {
     try {
       console.log('📦 Bundling project...');
 
-      // Read the bundle file directly
-      const bundleCode = await this.readProjectEntry();
+      let bundleCode: string | null = null;
+
+      // Try Metro bundler first if available
+      if (this.metro) {
+        try {
+          console.log('📦 Using Metro bundler...');
+          bundleCode = await this.metro.bundle();
+          console.log('✅ Metro bundle ready');
+        } catch (metroError) {
+          console.warn('⚠️  Metro bundling failed, falling back to simple file reading:', metroError);
+          // Fall through to simple file reading
+        }
+      }
+
+      // Fall back to simple file reading if Metro not available or failed
+      if (!bundleCode) {
+        console.log('📄 Using simple file reading...');
+        bundleCode = await this.readProjectEntry();
+      }
 
       if (bundleCode) {
         const sizeKB = Math.round(bundleCode.length / 1024);

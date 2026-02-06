@@ -14,6 +14,7 @@ function BrowserApp() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [projectPath, setProjectPath] = useState<string>('public');
+  const [useMetro, setUseMetro] = useState<boolean>(false);
   const [autoReload, setAutoReload] = useState<boolean>(false);
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
 
@@ -162,7 +163,8 @@ function BrowserApp() {
         const projectManager = new ProjectManager({
           path: projectPath,
           name: 'Test Project',
-          entryPoint: 'test-bundle.js',
+          entryPoint: projectPath === 'public' ? 'test-bundle.js' : 'App.tsx',
+          useMetro: useMetro,
         });
 
         await projectManager.start(connectionRef.current);
@@ -295,7 +297,7 @@ function BrowserApp() {
                 value={projectPath}
                 onChange={(e) => setProjectPath(e.target.value)}
                 disabled={autoReload}
-                placeholder="/path/to/your/project"
+                placeholder="public or test-app"
                 style={{
                   width: '100%',
                   padding: '8px 12px',
@@ -307,6 +309,29 @@ function BrowserApp() {
                 }}
               />
             </div>
+
+            {/* Metro bundler toggle */}
+            {projectPath !== 'public' && (
+              <div style={{ marginTop: '12px', padding: '12px', background: '#f8f9fa', borderRadius: '6px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={useMetro}
+                    onChange={(e) => setUseMetro(e.target.checked)}
+                    disabled={autoReload}
+                    style={{ marginRight: '8px', width: '16px', height: '16px' }}
+                  />
+                  <div>
+                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#333' }}>
+                      Use Metro Bundler
+                    </span>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#666' }}>
+                      Bundle TypeScript/JSX files on-the-fly (experimental)
+                    </p>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
 
           {/* Manual bundle button */}
