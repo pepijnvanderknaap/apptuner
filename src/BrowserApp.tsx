@@ -19,6 +19,7 @@ function BrowserApp() {
 
   const connectionRef = useRef<ConnectionManager | null>(null);
   const projectManagerRef = useRef<ProjectManager | null>(null);
+  const isTogglingRef = useRef<boolean>(false);
 
   useEffect(() => {
     initializeSession();
@@ -134,31 +135,43 @@ function BrowserApp() {
   };
 
   const toggleAutoReload = async () => {
+    // Prevent double-calls (double-click or React Strict Mode)
+    if (isTogglingRef.current) {
+      console.log('⚠️ Toggle already in progress, ignoring');
+      return;
+    }
+
     if (!connectionRef.current) {
       alert('Error: Not connected to relay');
       return;
     }
 
-    if (autoReload) {
-      // Stop auto-reload
-      if (projectManagerRef.current) {
-        projectManagerRef.current.stop();
-        projectManagerRef.current = null;
-      }
-      setAutoReload(false);
-      console.log('🛑 Auto-reload stopped');
-    } else {
-      // Start auto-reload
-      const projectManager = new ProjectManager({
-        path: projectPath,
-        name: 'Test Project',
-        entryPoint: 'test-bundle.js',
-      });
+    isTogglingRef.current = true;
 
-      await projectManager.start(connectionRef.current);
-      projectManagerRef.current = projectManager;
-      setAutoReload(true);
-      console.log('🚀 Auto-reload started');
+    try {
+      if (autoReload) {
+        // Stop auto-reload
+        if (projectManagerRef.current) {
+          projectManagerRef.current.stop();
+          projectManagerRef.current = null;
+        }
+        setAutoReload(false);
+        console.log('🛑 Auto-reload stopped');
+      } else {
+        // Start auto-reload
+        const projectManager = new ProjectManager({
+          path: projectPath,
+          name: 'Test Project',
+          entryPoint: 'test-bundle.js',
+        });
+
+        await projectManager.start(connectionRef.current);
+        projectManagerRef.current = projectManager;
+        setAutoReload(true);
+        console.log('🚀 Auto-reload started');
+      }
+    } finally {
+      isTogglingRef.current = false;
     }
   };
 
