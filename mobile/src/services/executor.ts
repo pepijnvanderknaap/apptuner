@@ -59,7 +59,11 @@ export class BundleExecutor {
         (global as any).React = React;
         (global as any).ReactNative = ReactNative;
 
-        console.log('[Executor] Set global.React and global.ReactNative');
+        // CRITICAL: Also set the patched NativeEventEmitter directly on global
+        // Metro bundles might access NativeEventEmitter directly
+        (global as any).NativeEventEmitter = SafeNativeEventEmitter;
+
+        console.log('[Executor] Set global.React, global.ReactNative, and global.NativeEventEmitter (patched)');
 
         // Use indirect eval to execute the bundle in global scope
         // Metro bundles are self-contained IIFEs that will call themselves
@@ -70,8 +74,21 @@ export class BundleExecutor {
         // delete (global as any).React;
         // delete (global as any).ReactNative;
 
-        // Metro bundles set global.App themselves
-        console.log('[Executor] Metro bundle executed, App set by bundle');
+        // Metro bundles define modules but don't auto-execute the entry point
+        // We need to call __r(0) to execute the entry point module (index.js)
+        console.log('[Executor] Metro bundle loaded, executing entry point...');
+        console.log('[Executor] global.__r exists:', typeof (global as any).__r);
+
+        if (typeof (global as any).__r === 'function') {
+          console.log('[Executor] Calling __r(0) to execute entry point');
+          (global as any).__r(0);
+        } else {
+          console.warn('[Executor] ⚠️  global.__r not found, cannot execute entry point');
+        }
+
+        // Metro bundles should have set global.App via index.js
+        console.log('[Executor] Metro bundle executed');
+        console.log('[Executor] global.App type:', typeof (global as any).App);
 
       } else {
         console.log('[Executor] Detected simple bundle, using parameter execution');
