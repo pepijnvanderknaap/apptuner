@@ -47,25 +47,46 @@ export class BundleExecutor {
 
       console.log('[Executor] Bundle code length:', bundleCode.length);
 
-      // Create a function that executes the bundle with React and ReactNative in scope
-      // The bundle should define a function called App and expose it
-      const wrappedCode = `
-        ${bundleCode}
-        return App;
-      `;
+      // Detect if this is a Metro bundle (contains Metro wrapper signature)
+      const isMetroBundle = bundleCode.includes('[Metro Bundle] Starting');
 
-      // Use Function constructor with React and ReactNative as parameters
-      // This makes them available in the bundle's scope
-      const executorFn = new Function('React', 'ReactNative', wrappedCode);
+      if (isMetroBundle) {
+        console.log('[Executor] Detected Metro bundle, using context execution');
 
-      // Execute and get the App component
-      const AppComponent = executorFn(React, ReactNative);
+        // Metro bundles need React and ReactNative on the 'this' context
+        const executionContext = {
+          React: React,
+          ReactNative: ReactNative,
+        };
 
-      // Store on global so the mobile app can access it
-      (global as any).App = AppComponent;
+        // Execute the Metro bundle with the proper context
+        // Metro bundles are wrapped IIFEs that use 'this' to access React/ReactNative
+        const executorFn = new Function(bundleCode);
+        executorFn.call(executionContext);
+
+        // Metro bundles set global.App themselves
+        console.log('[Executor] Metro bundle executed, App set by bundle');
+
+      } else {
+        console.log('[Executor] Detected simple bundle, using parameter execution');
+
+        // Simple bundles (test-bundle.js) need React/ReactNative as parameters
+        const wrappedCode = `
+          ${bundleCode}
+          return App;
+        `;
+
+        const executorFn = new Function('React', 'ReactNative', wrappedCode);
+        const AppComponent = executorFn(React, ReactNative);
+
+        // Store on global so the mobile app can access it
+        (global as any).App = AppComponent;
+
+        console.log('[Executor] Simple bundle executed successfully');
+      }
 
       console.log('[Executor] Bundle executed successfully');
-      console.log('[Executor] App component type:', typeof AppComponent);
+      console.log('[Executor] App component type:', typeof (global as any).App);
 
     } catch (error) {
       console.error('[Executor] Execution error:', error);
