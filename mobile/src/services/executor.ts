@@ -51,18 +51,24 @@ export class BundleExecutor {
       const isMetroBundle = bundleCode.includes('[Metro Bundle] Starting');
 
       if (isMetroBundle) {
-        console.log('[Executor] Detected Metro bundle, using context execution');
+        console.log('[Executor] Detected Metro bundle, using global scope execution');
 
-        // Metro bundles need React and ReactNative on the 'this' context
-        const executionContext = {
-          React: React,
-          ReactNative: ReactNative,
-        };
+        // Metro bundles are complete IIFEs: (function() {...}).call(this)
+        // They expect React and ReactNative on the 'this' context
+        // Set them on global temporarily so the bundle can access them
+        (global as any).React = React;
+        (global as any).ReactNative = ReactNative;
 
-        // Execute the Metro bundle with the proper context
-        // Metro bundles are wrapped IIFEs that use 'this' to access React/ReactNative
-        const executorFn = new Function(bundleCode);
-        executorFn.call(executionContext);
+        console.log('[Executor] Set global.React and global.ReactNative');
+
+        // Use indirect eval to execute the bundle in global scope
+        // Metro bundles are self-contained IIFEs that will call themselves
+        // eslint-disable-next-line no-eval
+        (0, eval)(bundleCode);
+
+        // Clean up (optional - Metro bundles may need these to stay)
+        // delete (global as any).React;
+        // delete (global as any).ReactNative;
 
         // Metro bundles set global.App themselves
         console.log('[Executor] Metro bundle executed, App set by bundle');
