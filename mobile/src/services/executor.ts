@@ -55,15 +55,20 @@ export class BundleExecutor {
 
         // Metro bundles are complete IIFEs: (function() {...}).call(this)
         // They expect React and ReactNative on the 'this' context
-        // Set them on global temporarily so the bundle can access them
-        (global as any).React = React;
-        (global as any).ReactNative = ReactNative;
 
-        // CRITICAL: Also set the patched NativeEventEmitter directly on global
-        // Metro bundles might access NativeEventEmitter directly
+        // CRITICAL: Create a copy of ReactNative with patched NativeEventEmitter
+        // This prevents modules from getting the unpatched version
+        const patchedReactNative = {
+          ...ReactNative,
+          NativeEventEmitter: SafeNativeEventEmitter,
+        };
+
+        // Set them on global so Metro bundle can access them via 'this'
+        (global as any).React = React;
+        (global as any).ReactNative = patchedReactNative;
         (global as any).NativeEventEmitter = SafeNativeEventEmitter;
 
-        console.log('[Executor] Set global.React, global.ReactNative, and global.NativeEventEmitter (patched)');
+        console.log('[Executor] Set global.React, global.ReactNative (with patched NativeEventEmitter)');
 
         // Use indirect eval to execute the bundle in global scope
         // Metro bundles are self-contained IIFEs that will call themselves
