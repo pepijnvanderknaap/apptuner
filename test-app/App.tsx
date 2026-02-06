@@ -8,7 +8,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 // console.log('[App] logoImage type:', typeof logoImage);
 
 export default function App() {
-  const [count, setCount] = useState(66666); // DYNAMIC GETTER TEST!
+  const [count, setCount] = useState(77777); // METRO AUTO-RELOAD TEST!
 
   useEffect(() => {
     console.log('🚀 App mounted! Console logging is working!');
@@ -34,11 +34,11 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.emoji}>⚡</Text>
-      <Text style={styles.title}>DYNAMIC GETTER - 66666!</Text>
+      <Text style={styles.emoji}>🔥</Text>
+      <Text style={styles.title}>METRO AUTO-RELOAD! 🚀</Text>
 
       <Text style={styles.subtitle}>
-        If you see 66666, the fix WORKS! 🚀🚀🚀
+        If you see 99999, Metro auto-reload WORKS! ⚡️
       </Text>
 
       <View style={styles.counterBox}>

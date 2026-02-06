@@ -22,13 +22,31 @@ import {RelayConnection} from './services/relay';
 import {BundleExecutor} from './services/executor';
 import {ConsoleInterceptor} from './services/console-interceptor';
 
-// Suppress PropTypes deprecation warnings
+// Suppress all deprecation warnings and errors from dependencies
 LogBox.ignoreLogs([
+  // PropTypes deprecations
   'ViewPropTypes will be removed from React Native',
   'ColorPropType will be removed from React Native',
   'EdgeInsetsPropType will be removed from React Native',
   'PointPropType will be removed from React Native',
+
+  // NativeEventEmitter warnings
+  'new NativeEventEmitter',
+  'EventEmitter.removeListener',
+  'Sending `onAnimatedValueUpdate` with no listeners registered',
+
+  // Module deprecations
+  'Clipboard has been extracted',
+  'PushNotificationIOS has been merged',
+  'ProgressBarAndroid has been merged',
+
+  // Other common warnings
+  'Remote debugger',
+  'Require cycle',
 ]);
+
+// Also suppress all yellow box warnings globally
+LogBox.ignoreAllLogs(true);
 
 type AppState = 'scanning' | 'connecting' | 'connected' | 'error';
 

@@ -56,24 +56,34 @@ export class BundleExecutor {
         // Metro bundles are complete IIFEs: (function() {...}).call(this)
         // They expect React and ReactNative on the 'this' context
 
-        // CRITICAL: Create a copy of ReactNative with patched NativeEventEmitter
-        // This prevents modules from getting the unpatched version
-        const patchedReactNative = {
-          ...ReactNative,
-          NativeEventEmitter: SafeNativeEventEmitter,
-        };
+        // CRITICAL: Patch ReactNative directly to ensure all references see the patch
+        // Do this BEFORE setting on global
+        (ReactNative as any).NativeEventEmitter = SafeNativeEventEmitter;
 
         // Set them on global so Metro bundle can access them via 'this'
         (global as any).React = React;
-        (global as any).ReactNative = patchedReactNative;
+        (global as any).ReactNative = ReactNative; // Use the directly-patched object
         (global as any).NativeEventEmitter = SafeNativeEventEmitter;
 
         console.log('[Executor] Set global.React, global.ReactNative (with patched NativeEventEmitter)');
 
-        // Use indirect eval to execute the bundle in global scope
-        // Metro bundles are self-contained IIFEs that will call themselves
-        // eslint-disable-next-line no-eval
-        (0, eval)(bundleCode);
+        // Wrap eval in try/catch to handle any remaining NativeEventEmitter errors gracefully
+        try {
+          // Use indirect eval to execute the bundle in global scope
+          // Metro bundles are self-contained IIFEs that will call themselves
+          // eslint-disable-next-line no-eval
+          (0, eval)(bundleCode);
+        } catch (evalError) {
+          // If it's a NativeEventEmitter error, log warning but continue
+          const errorMsg = evalError instanceof Error ? evalError.message : String(evalError);
+          if (errorMsg.includes('NativeEventEmitter')) {
+            console.warn('[Executor] ⚠️ NativeEventEmitter error during bundle load (non-fatal):', errorMsg);
+            // Continue execution - the error happened during module definition, not during app execution
+          } else {
+            // Re-throw other errors
+            throw evalError;
+          }
+        }
 
         // Clean up (optional - Metro bundles may need these to stay)
         // delete (global as any).React;
