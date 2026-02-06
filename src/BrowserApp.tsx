@@ -5,7 +5,7 @@ import { ProjectManager } from './services/project-manager';
 import { ConsolePanel, ConsoleLog } from './components/ConsolePanel';
 import { DeviceList, Device } from './components/DeviceList';
 
-type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 function BrowserApp() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
@@ -51,6 +51,7 @@ function BrowserApp() {
           disconnected: 'disconnected',
           connecting: 'connecting',
           connected: 'connected',
+          reconnecting: 'reconnecting',
           error: 'error',
         };
         setConnectionState(stateMap[status] || 'disconnected');
@@ -185,10 +186,25 @@ function BrowserApp() {
     switch (connectionState) {
       case 'connecting':
         return 'Connecting to relay...';
+      case 'reconnecting':
+        return 'Reconnecting...';
       case 'connected':
-        return devices.length > 0 ? `Connected - ${devices.length} device(s)` : 'Waiting for mobile device...';
+        const baseText = devices.length > 0 ? `Connected - ${devices.length} device(s)` : 'Waiting for mobile device...';
+
+        // Add latency indicator if connected
+        if (connectionRef.current && devices.length > 0) {
+          const latency = connectionRef.current.getLatency();
+          const quality = connectionRef.current.getConnectionQuality();
+
+          if (latency > 0) {
+            const qualityEmoji = quality === 'good' ? '🟢' : quality === 'fair' ? '🟡' : '🔴';
+            return `${baseText} ${qualityEmoji} ${latency}ms`;
+          }
+        }
+
+        return baseText;
       case 'error':
-        return 'Connection error';
+        return 'Connection error - retrying...';
       default:
         return 'Waiting for device...';
     }

@@ -188,6 +188,19 @@ export class RelaySession {
 
       console.log(`Message from ${from}: ${message.type}`);
 
+      // Handle ping/pong for health monitoring
+      if (message.type === 'ping') {
+        // Respond with pong immediately
+        const source = from === 'desktop' ? this.desktopWs : this.mobileWs;
+        if (source && source.readyState === WebSocket.READY_STATE_OPEN) {
+          this.sendTo(source, {
+            type: 'pong',
+            timestamp: Date.now(),
+          });
+        }
+        return; // Don't route ping messages
+      }
+
       // Route message to the other client
       if (from === 'desktop') {
         // Desktop → Mobile
