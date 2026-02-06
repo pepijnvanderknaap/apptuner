@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AppTuner Test Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f7;
+            padding: 24px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 32px;
+            font-weight: 600;
+            color: #1d1d1f;
+            margin-bottom: 8px;
+        }
+        .subtitle {
+            color: #86868b;
+            margin-bottom: 32px;
+        }
+        .input-group {
+            margin-bottom: 24px;
+        }
+        label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #1d1d1f;
+        }
+        input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        button {
+            background: #007aff;
+            color: white;
+            border: none;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        button:hover {
+            background: #0051d5;
+        }
+        button:disabled {
+            background: #d2d2d7;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 24px;
+            padding: 16px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .status.connecting {
+            background: #fff3cd;
+            border: 1px solid #ffecb5;
+            color: #856404;
+        }
+        .status.connected {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .logs {
+            margin-top: 24px;
+            padding: 16px;
+            background: #1d1d1f;
+            color: #00ff00;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            margin-bottom: 4px;
+        }
+        #bundleOutput {
+            margin-top: 24px;
+            padding: 24px;
+            background: #f5f5f7;
+            border-radius: 8px;
+            min-height: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AppTuner Test Client</h1>
+        <p class="subtitle">Web-based client for testing AppTuner functionality</p>
+
+        <div class="input-group">
+            <label for="sessionId">Session ID</label>
+            <input
+                type="text"
+                id="sessionId"
+                placeholder="Enter session ID from desktop app"
+                value="">
+        </div>
+
+        <div class="input-group">
+            <label for="relayUrl">Relay URL</label>
+            <input
+                type="text"
+                id="relayUrl"
+                value="ws://localhost:8787">
+        </div>
+
+        <button id="connectBtn" onclick="connect()">Connect</button>
+        <button id="disconnectBtn" onclick="disconnect()" disabled>Disconnect</button>
+
+        <div id="status"></div>
+
+        <div class="logs" id="logs"></div>
+
+        <div id="bundleOutput"></div>
+    </div>
+
+    <script src="client.js"></script>
+</body>
+</html>

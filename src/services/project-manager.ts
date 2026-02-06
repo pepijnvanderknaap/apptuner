@@ -84,8 +84,7 @@ export class ProjectManager {
     try {
       console.log('📦 Bundling project...');
 
-      // For now, we'll read a file directly
-      // In production, this would use Metro bundler
+      // Read the bundle file directly
       const bundleCode = await this.readProjectEntry();
 
       if (bundleCode) {
@@ -103,12 +102,9 @@ export class ProjectManager {
 
   /**
    * Read the project entry point
-   * TODO: Replace with actual Metro bundler
    */
   private async readProjectEntry(): Promise<string | null> {
     try {
-      // For now, read from the test-app directory
-      // In production, this would bundle the actual project
       const entryPoint = this.config.entryPoint || 'App.tsx';
       let filePath = `/${this.config.path}/${entryPoint}`;
 

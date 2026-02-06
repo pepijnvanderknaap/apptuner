@@ -1,0 +1,19 @@
+{
+  "name": "apptuner-test-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "watch": "node watch-and-bundle.js"
+  },
+  "dependencies": {
+    "react": "18.2.0",
+    "react-native": "0.74.5"
+  },
+  "devDependencies": {
+    "@react-native/babel-preset": "^0.83.1",
+    "@react-native/metro-config": "^0.83.1",
+    "chokidar": "^5.0.0",
+    "metro-react-native-babel-preset": "^0.77.0",
+    "metro-runtime": "^0.83.3"
+  }
+}

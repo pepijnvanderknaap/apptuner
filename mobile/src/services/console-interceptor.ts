@@ -83,9 +83,11 @@ export class ConsoleInterceptor {
       // Call original method first (so logs still appear in native console)
       originalMethod(...args);
 
-      // Send to callback if active
+      // Send to callback if active and not already in callback (prevent infinite loop)
       if (this.callback && this.isIntercepting) {
         try {
+          // Temporarily disable interception to prevent infinite loop
+          this.isIntercepting = false;
           this.callback({
             level,
             args,
@@ -94,6 +96,9 @@ export class ConsoleInterceptor {
         } catch (error) {
           // Use original console to avoid infinite loop
           originalMethod('ConsoleInterceptor error:', error);
+        } finally {
+          // Re-enable interception
+          this.isIntercepting = true;
         }
       }
     };

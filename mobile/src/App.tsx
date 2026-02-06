@@ -22,8 +22,13 @@ import {RelayConnection} from './services/relay';
 import {BundleExecutor} from './services/executor';
 import {ConsoleInterceptor} from './services/console-interceptor';
 
-// Suppress ViewPropTypes deprecation warning from react-native-camera
-LogBox.ignoreLogs(['ViewPropTypes will be removed from React-Native']);
+// Suppress PropTypes deprecation warnings
+LogBox.ignoreLogs([
+  'ViewPropTypes will be removed from React Native',
+  'ColorPropType will be removed from React Native',
+  'EdgeInsetsPropType will be removed from React Native',
+  'PointPropType will be removed from React Native',
+]);
 
 type AppState = 'scanning' | 'connecting' | 'connected' | 'error';
 
@@ -39,6 +44,8 @@ export default function App() {
   const connectionRef = useRef<RelayConnection | null>(null);
   const executorRef = useRef<BundleExecutor | null>(null);
   const consoleInterceptorRef = useRef<ConsoleInterceptor | null>(null);
+  const unsubscribeStatusRef = useRef<(() => void) | null>(null);
+  const unsubscribeBundleRef = useRef<(() => void) | null>(null);
 
   // Handle QR code scan
   const handleQRScan = async (data: string) => {
@@ -86,11 +93,11 @@ export default function App() {
       consoleInterceptorRef.current = interceptor;
       interceptor.start((entry) => {
         // Send console logs to desktop via relay
-        connection.sendLog(entry.level, ...entry.args);
+        connection.sendLog(entry.level as any, entry.args);
       });
 
       // Subscribe to connection status
-      connection.onStatusChange(status => {
+      unsubscribeStatusRef.current = connection.onStatusChange(status => {
         if (status === 'connected') {
           setAppState('connected');
         } else if (status === 'error') {
@@ -100,7 +107,7 @@ export default function App() {
       });
 
       // Subscribe to bundle updates
-      connection.onBundleUpdate(async bundle => {
+      unsubscribeBundleRef.current = connection.onBundleUpdate(async bundle => {
         try {
           console.log('Received bundle update:', bundle.code.length, 'bytes');
 
@@ -137,6 +144,16 @@ export default function App() {
 
   // Disconnect and go back to scanning
   const handleDisconnect = () => {
+    // Clean up subscriptions
+    if (unsubscribeStatusRef.current) {
+      unsubscribeStatusRef.current();
+      unsubscribeStatusRef.current = null;
+    }
+    if (unsubscribeBundleRef.current) {
+      unsubscribeBundleRef.current();
+      unsubscribeBundleRef.current = null;
+    }
+
     if (connectionRef.current) {
       connectionRef.current.disconnect();
       connectionRef.current = null;

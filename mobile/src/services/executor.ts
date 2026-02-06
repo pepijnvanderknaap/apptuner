@@ -7,9 +7,33 @@
 import React from 'react';
 import * as ReactNative from 'react-native';
 
+// Global NativeEventEmitter patch - applied once when module loads
+const OriginalNativeEventEmitter = ReactNative.NativeEventEmitter;
+
+// Create a patched version that handles null modules
+class SafeNativeEventEmitter extends OriginalNativeEventEmitter {
+  constructor(nativeModule?: any) {
+    // If nativeModule is null/undefined, provide a mock to avoid crash
+    if (!nativeModule) {
+      console.warn('[SafeNativeEventEmitter] Created with null module, using mock');
+      const mockModule = {
+        addListener: () => {},
+        removeListeners: () => {},
+      };
+      super(mockModule as any);
+      return;
+    }
+    super(nativeModule);
+  }
+}
+
+// Replace globally so all code uses the safe version
+(ReactNative as any).NativeEventEmitter = SafeNativeEventEmitter;
+
+console.log('[Executor Module] NativeEventEmitter globally patched');
+
 export class BundleExecutor {
   private lastBundle: string | null = null;
-  private executionContext: any = null;
 
   /**
    * Execute a JavaScript bundle
@@ -24,13 +48,14 @@ export class BundleExecutor {
       console.log('[Executor] Bundle code length:', bundleCode.length);
 
       // Create a function that executes the bundle with React and ReactNative in scope
-      // The bundle should define a function called App and return it
+      // The bundle should define a function called App and expose it
       const wrappedCode = `
         ${bundleCode}
         return App;
       `;
 
-      // Use Function constructor instead of eval for better scope control
+      // Use Function constructor with React and ReactNative as parameters
+      // This makes them available in the bundle's scope
       const executorFn = new Function('React', 'ReactNative', wrappedCode);
 
       // Execute and get the App component
@@ -65,23 +90,5 @@ export class BundleExecutor {
    */
   cleanup(): void {
     this.lastBundle = null;
-    this.executionContext = null;
-  }
-
-  /**
-   * Create execution context with React Native APIs
-   */
-  private createExecutionContext(): any {
-    // The bundle has access to all React Native globals
-    // We just need to ensure they're available
-
-    return {
-      // React Native is already available globally
-      // The bundle can import from 'react-native'
-
-      // Add any custom APIs here if needed
-      __DEV__: __DEV__,
-      console: console, // Use native console
-    };
   }
 }

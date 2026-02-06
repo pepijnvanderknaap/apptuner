@@ -12,23 +12,21 @@ import {
   ScrollView,
   TouchableOpacity,
   Modal,
-} from 'react';
+} from 'react-native';
 
 interface Props {
-  visible: boolean;
-  error: Error | string;
+  error: string;
+  stack: string;
   onDismiss: () => void;
 }
 
-export default function ErrorOverlay({visible, error, onDismiss}: Props) {
-  const errorMessage =
-    typeof error === 'string' ? error : error.message;
-  const errorStack =
-    typeof error === 'string' ? '' : error.stack || '';
+export default function ErrorOverlay({error, stack, onDismiss}: Props) {
+  const errorMessage = error;
+  const errorStack = stack;
 
   return (
     <Modal
-      visible={visible}
+      visible={true}
       animationType="fade"
       transparent={true}
       onRequestClose={onDismiss}>

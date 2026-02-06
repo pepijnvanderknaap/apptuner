@@ -98,12 +98,14 @@ export class RelayConnection {
   /**
    * Send console log to desktop
    */
-  sendLog(level: 'log' | 'warn' | 'error', args: any[]): void {
+  sendLog(level: 'log' | 'info' | 'warn' | 'error' | 'debug', args: any[]): void {
     this.send({
       type: 'console_log',
-      level,
-      args,
-      timestamp: Date.now(),
+      payload: {
+        level,
+        args,
+        timestamp: Date.now(),
+      },
     });
   }
 
@@ -136,7 +138,7 @@ export class RelayConnection {
    */
   private send(message: any): void {
     if (this.ws?.readyState !== WebSocket.OPEN) {
-      console.warn('[Relay] Cannot send message: not connected');
+      // Silently ignore if not connected (common during initial connection)
       return;
     }
 

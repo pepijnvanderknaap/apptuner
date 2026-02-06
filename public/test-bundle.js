@@ -1,18 +1,18 @@
 // Simple React Native test bundle
 // React and ReactNative are injected as function parameters
-const { View, Text, StyleSheet, TouchableOpacity } = ReactNative;
+const { View, Text, StyleSheet, TouchableOpacity, ScrollView } = ReactNative;
 
 function App() {
   const [count, setCount] = React.useState(0);
 
   return React.createElement(
-    View,
-    { style: styles.container },
-    React.createElement(Text, { style: styles.title }, 'Hello from Apptuner! 🚀'),
+    ScrollView,
+    { style: styles.container, contentContainerStyle: styles.contentContainer },
+    React.createElement(Text, { style: styles.title }, 'AUTO-MAGIC UPDATE! 🪄✨'),
     React.createElement(
       Text,
       { style: styles.subtitle },
-      'This component was sent from your desktop and is running on your phone'
+      'Watch this change happen automatically! ⚡️'
     ),
     React.createElement(
       View,
@@ -43,9 +43,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1a1a1a',
-    justifyContent: 'center',
+  },
+  contentContainer: {
     alignItems: 'center',
     padding: 20,
+    paddingTop: 40,
+    paddingBottom: 60,
   },
   title: {
     fontSize: 32,
@@ -98,5 +101,5 @@ const styles = StyleSheet.create({
   },
 });
 
-// Export as global for eval
-this.App = App;
+// The executor will return this App component
+console.log('Bundle code executed, App defined');

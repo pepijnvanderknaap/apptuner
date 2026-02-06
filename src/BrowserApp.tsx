@@ -3,6 +3,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { ConnectionManager, generateSessionId } from './services/connection';
 import { ProjectManager } from './services/project-manager';
 import { ConsolePanel, ConsoleLog } from './components/ConsolePanel';
+import { DeviceList, Device } from './components/DeviceList';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 
@@ -10,7 +11,8 @@ function BrowserApp() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [sessionUrl, setSessionUrl] = useState<string>('');
   const [sessionId, setSessionId] = useState<string>('');
-  const [connectedDevices, setConnectedDevices] = useState<number>(0);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [projectPath, setProjectPath] = useState<string>('public');
   const [autoReload, setAutoReload] = useState<boolean>(false);
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
@@ -50,23 +52,43 @@ function BrowserApp() {
           error: 'error',
         };
         setConnectionState(stateMap[status] || 'disconnected');
-
-        if (status === 'connected') {
-          setConnectedDevices(1);
-        } else {
-          setConnectedDevices(0);
-        }
       });
 
-      // Subscribe to console log messages from mobile device
+      // Subscribe to messages from mobile devices
       connection.onMessage((data) => {
-        if (data.type === 'console_log') {
+        // Handle console logs
+        if (data.type === 'console_log' && data.payload) {
           const consoleLog: ConsoleLog = {
             level: data.payload.level || 'log',
             args: data.payload.args || [],
             timestamp: data.payload.timestamp || Date.now(),
           };
           setConsoleLogs((prev) => [...prev, consoleLog]);
+        }
+
+        // Handle mobile device connection
+        if (data.type === 'mobile_connected') {
+          // For now, use a single default device since we're in single-device mode
+          const newDevice: Device = {
+            deviceId: 'mobile-1',
+            deviceInfo: {
+              name: 'Mobile Device',
+              platform: 'ios',
+              model: 'iPhone',
+              osVersion: '15.0',
+            },
+            connectedAt: data.timestamp || Date.now(),
+            lastActivity: data.timestamp || Date.now(),
+          };
+          setDevices([newDevice]);
+          // Default to broadcast mode (null = all devices)
+          setSelectedDeviceId(null);
+        }
+
+        // Handle mobile device disconnection
+        if (data.type === 'mobile_disconnected') {
+          setDevices([]);
+          setSelectedDeviceId(null);
         }
       });
 
@@ -149,7 +171,7 @@ function BrowserApp() {
       case 'connecting':
         return 'Connecting to relay...';
       case 'connected':
-        return connectedDevices > 0 ? `Connected - ${connectedDevices} device(s)` : 'Waiting for mobile device...';
+        return devices.length > 0 ? `Connected - ${devices.length} device(s)` : 'Waiting for mobile device...';
       case 'error':
         return 'Connection error';
       default:
@@ -203,6 +225,17 @@ function BrowserApp() {
         <span className="connection-status__dot"></span>
         <span>{getConnectionStatusText()}</span>
       </div>
+
+      {/* Device List */}
+      {connectionState === 'connected' && (
+        <div style={{ marginTop: '20px' }}>
+          <DeviceList
+            devices={devices}
+            selectedDeviceId={selectedDeviceId}
+            onSelectDevice={setSelectedDeviceId}
+          />
+        </div>
+      )}
 
       {/* Controls */}
       {connectionState === 'connected' && (
