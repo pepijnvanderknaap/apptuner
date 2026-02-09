@@ -94,6 +94,15 @@ export class BundleExecutor {
         console.log('[Executor] Metro bundle loaded, executing entry point...');
         console.log('[Executor] global.__r exists:', typeof (global as any).__r);
 
+        // CRITICAL: Clear Metro's module cache BEFORE executing entry point
+        // Metro caches module exports in __r.c Map from previous bundle execution
+        if ((global as any).__r && (global as any).__r.c) {
+          console.log('[Executor] 🔥 Clearing Metro module cache from previous bundle');
+          const cacheSize = (global as any).__r.c.size;
+          (global as any).__r.c.clear();
+          console.log(`[Executor] ✅ Cleared ${cacheSize} cached modules`);
+        }
+
         if (typeof (global as any).__r === 'function') {
           console.log('[Executor] Calling __r(0) to execute entry point');
           (global as any).__r(0);
@@ -104,6 +113,8 @@ export class BundleExecutor {
         // Metro bundles should have set global.App via index.js
         console.log('[Executor] Metro bundle executed');
         console.log('[Executor] global.App type:', typeof (global as any).App);
+        console.log('[Executor] Bundle ID:', (global as any).BUNDLE_ID);
+        console.log('[Executor] Bundle time:', (global as any).BUNDLE_TIME);
 
       } else {
         console.log('[Executor] Detected simple bundle, using parameter execution');

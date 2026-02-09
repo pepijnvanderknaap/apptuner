@@ -192,41 +192,24 @@ async function bundle() {
   );
   console.log('[Bundle] Old Metro pattern (!=) replaced:', matches2, 'occurrences');
 
-  // CRITICAL: Patch Metro's modules Map to use global storage
-  // Metro uses: var modules = clear(); where clear() returns a fresh Map
-  console.log('[Bundle] Patching Metro modules Map to use global storage...');
+  // GHOST MODULE DISABLED - Too fragile, breaks even first load
+  // Instead, we'll rely on mobile app doing full reload on bundle updates
+  console.log('[Bundle] Ghost Module disabled - using app-level reload strategy');
 
-  let modulesPatched = 0;
-  const modulesPattern = /(\bvar\s+modules\s*=\s*clear\(\);)/g;
+  // Let Metro use a fresh modules Map each time - no persistence
+  // This ensures old factory functions don't stick around across hot reloads
+  console.log('[Bundle] Using fresh modules Map (no global persistence)');
 
-  if (modulesPattern.test(hotReloadCode)) {
-    hotReloadCode = hotReloadCode.replace(modulesPattern,
-      'var _g = (typeof __APPTUNER_GLOBAL !== "undefined" ? __APPTUNER_GLOBAL : (typeof globalThis !== "undefined" ? globalThis : global)); ' +
-      'var modules = (_g && _g.__metroModules) || clear(); ' +
-      'if (_g) { _g.__metroModules = modules; console.log("[Metro] Using global modules Map from", typeof __APPTUNER_GLOBAL !== "undefined" ? "APPTUNER" : "fallback"); } ' +
-      'if (_g && !_g.__dirtyModules) { _g.__dirtyModules = new Set(); console.log("[HotReload] Initialized dirty tracking"); }'
-    );
-    modulesPatched++;
-    console.log('[Bundle] Patched: var modules = clear()');
-  } else {
-    console.warn('[Bundle] Could not find "var modules = clear()" pattern');
-  }
-
-  console.log('[Bundle] Modules Map patching:', modulesPatched, 'patterns matched');
-
-  // CRITICAL: Comment out standalone __r(0) calls from the bundle
-  // These would set isInitialized=true before our executor calls __r(0)
-  console.log('[Bundle] Commenting out standalone __r(0) calls...');
-
-  // Pattern: Newline followed by __r(0); (standalone statement)
-  const requireCallPattern = /\n\s*__r\(0\);/g;
-  const removedCalls = (hotReloadCode.match(requireCallPattern) || []).length;
-  hotReloadCode = hotReloadCode.replace(requireCallPattern, '\n// __r(0); // Commented out for hot reload');
-
-  console.log('[Bundle] Commented out', removedCalls, 'standalone __r(0) calls');
+  // Let __r(0) execute naturally - don't comment it out
+  // The bundle will auto-execute and set global.App
+  console.log('[Bundle] Allowing bundle to auto-execute entry point');
 
   code = hotReloadCode;
   console.log('[Bundle] Hot reload patching complete with wrapper injection');
+
+  // Generate bundle ID before wrapper
+  const bundleId = Date.now();
+  const bundleTime = new Date().toISOString();
 
   // Wrap the bundle with initialization code
   // Use .call(this) to ensure 'this' context is available to the bundle
@@ -240,6 +223,65 @@ async function bundle() {
 '  console.log(\'[Metro Bundle] Starting...\');\n' +
 '  console.log(\'[Metro Bundle] this.React exists:\', !!this.React);\n' +
 '  console.log(\'[Metro Bundle] this.ReactNative exists:\', !!this.ReactNative);\n' +
+'\n' +
+'  // NUCLEAR SOLUTION: Hijack Metro\'s __d to patch react-native module at definition time\n' +
+'  // This fixes the "Shadow Module" problem where Metro caches stale exports\n' +
+'  console.log(\'[Bundle] Installing __d hijack to patch react-native at definition...\');\n' +
+'\n' +
+'  const globalObj = (typeof global !== \'undefined\' ? global : (typeof window !== \'undefined\' ? window : this));\n' +
+'  const originalDefine = globalObj.__d;\n' +
+'\n' +
+'  if (originalDefine) {\n' +
+'    let moduleCount = 0;\n' +
+'    globalObj.__d = function(factory, moduleId, dependencyMap) {\n' +
+'      // Wrap factory to intercept react-native module exports\n' +
+'      const wrappedFactory = function(g, require, importDefault, importAll, moduleObject, exports, dependencyMap) {\n' +
+'        // Call original factory\n' +
+'        factory(g, require, importDefault, importAll, moduleObject, exports, dependencyMap);\n' +
+'\n' +
+'        // DEBUG: Log EVERY module definition to find react-native\n' +
+'        moduleCount++;\n' +
+'        const exportKeys = moduleObject.exports ? Object.keys(moduleObject.exports).slice(0, 10) : [];\n' +
+'        console.log(\'[Bundle __d] Module #\' + moduleCount + \' (ID:\' + moduleId + \') exports:\', exportKeys.length > 0 ? exportKeys.join(\', \') : \'(empty)\');\n' +
+'\n' +
+'        // Check if this is the react-native module\n' +
+'        if (moduleObject.exports && moduleObject.exports.NativeEventEmitter) {\n' +
+'          console.log(\'[Bundle __d] 🎯 FOUND react-native module! Patching NativeEventEmitter...\');\n' +
+'          const OriginalNE = moduleObject.exports.NativeEventEmitter;\n' +
+'\n' +
+'          // Create patched version\n' +
+'          const PatchedNE = function(nativeModule) {\n' +
+'            if (!nativeModule) {\n' +
+'              console.warn(\'[Bundle __d] NativeEventEmitter null arg blocked, using mock\');\n' +
+'              return OriginalNE.call(this, { addListener: function(){}, removeListeners: function(){} });\n' +
+'            }\n' +
+'            return OriginalNE.call(this, nativeModule);\n' +
+'          };\n' +
+'          PatchedNE.prototype = OriginalNE.prototype;\n' +
+'          for (var key in OriginalNE) {\n' +
+'            if (OriginalNE.hasOwnProperty(key)) {\n' +
+'              PatchedNE[key] = OriginalNE[key];\n' +
+'            }\n' +
+'          }\n' +
+'\n' +
+'          // Replace in module exports\n' +
+'          moduleObject.exports.NativeEventEmitter = PatchedNE;\n' +
+'          console.log(\'[Bundle __d] ✅ NativeEventEmitter patched at source!\');\n' +
+'        }\n' +
+'\n' +
+'        // Also check for modules with Image export (to identify react-native)\n' +
+'        if (moduleObject.exports && moduleObject.exports.Image) {\n' +
+'          console.log(\'[Bundle __d] 📷 Found module with Image export (module #\' + moduleCount + \')\');\n' +
+'        }\n' +
+'      };\n' +
+'\n' +
+'      // Call original __d with wrapped factory\n' +
+'      return originalDefine(wrappedFactory, moduleId, dependencyMap);\n' +
+'    };\n' +
+'    console.log(\'[Bundle] ✅ __d hijack installed!\');\n' +
+'  } else {\n' +
+'    console.warn(\'[Bundle] ⚠️ __d not found, cannot install hijack\');\n' +
+'  }\n' +
 '\n' +
 '  // Get global object (works in both contexts)\n' +
 '  const globalObj = typeof global !== \'undefined\' ? global : (typeof window !== \'undefined\' ? window : this);\n' +
@@ -346,75 +388,42 @@ async function bundle() {
 '  this.resolveAssetSource = resolveAssetSource;\n' +
 '  console.log(\'[Bundle] resolveAssetSource installed globally\');\n' +
 '\n' +
-'  // INTERCEPT require() to wrap Image when it\'s imported\n' +
-'  console.log(\'[Bundle] Setting up require() interceptor for Image...\');\n' +
+'  // CRITICAL: Patch NativeEventEmitter IMMEDIATELY - BEFORE any other code\n' +
+'  // Save original FIRST\n' +
+'  const OriginalNativeEventEmitter = this.ReactNative.NativeEventEmitter;\n' +
 '\n' +
-'  const React = this.React;\n' +
-'  const OriginalImage = this.ReactNative.Image;\n' +
-'\n' +
-'  // Create wrapped Image component\n' +
-'  const WrappedImage = React.forwardRef(function WrappedImage(props, ref) {\n' +
-'    console.log(\'[Bundle] Image rendering with source:\', props.source);\n' +
-'\n' +
-'    let resolvedSource = props.source;\n' +
-'\n' +
-'    // If source is a number (asset ID), resolve it to URI\n' +
-'    if (typeof props.source === \'number\') {\n' +
-'      const asset = assetMap.get(props.source);\n' +
-'      if (asset && asset.uri) {\n' +
-'        console.log(\'[Bundle] ✅ Resolved asset\', props.source, \'to base64 URI\');\n' +
-'        resolvedSource = { uri: asset.uri };\n' +
-'      } else {\n' +
-'        console.warn(\'[Bundle] ⚠️ Asset\', props.source, \'not found or has no URI\');\n' +
-'      }\n' +
+'  // Create safe version that returns pure mock for null modules\n' +
+'  const SafeNativeEventEmitterConstructor = function(nativeModule) {\n' +
+'    if (!nativeModule) {\n' +
+'      console.warn(\'[Bundle] NativeEventEmitter created with null module, returning pure mock (NOT calling original)\');\n' +
+'      // Return pure mock without calling original constructor (which has invariant check)\n' +
+'      this.addListener = function() { return { remove: function() {} }; };\n' +
+'      this.removeListener = function() {};\n' +
+'      this.removeAllListeners = function() {};\n' +
+'      this.emit = function() {};\n' +
+'      this.listenerCount = function() { return 0; };\n' +
+'      return this;\n' +
 '    }\n' +
-'\n' +
-'    return React.createElement(OriginalImage, { ...props, source: resolvedSource, ref });\n' +
-'  });\n' +
-'\n' +
-'  // Create a modified ReactNative object with our wrapped Image\n' +
-'  const WrappedReactNative = { ...this.ReactNative, Image: WrappedImage };\n' +
-'\n' +
-'  // Store original require function (Metro uses __r)\n' +
-'  const originalRequire = globalObj.__r;\n' +
-'\n' +
-'  if (originalRequire) {\n' +
-'    console.log(\'[Bundle] Intercepting Metro require (__r)...\');\n' +
-'\n' +
-'    globalObj.__r = function(moduleId) {\n' +
-'      const module = originalRequire(moduleId);\n' +
-'\n' +
-'      // If this is react-native module, return our wrapped version\n' +
-'      // Metro\'s require returns the module\'s exports\n' +
-'      if (module && module.Image === OriginalImage) {\n' +
-'        console.log(\'[Bundle] 🎯 Intercepted react-native import, returning wrapped Image\');\n' +
-'        return WrappedReactNative;\n' +
-'      }\n' +
-'\n' +
-'      return module;\n' +
-'    };\n' +
-'\n' +
-'    // CRITICAL: Forward .c property access to original require\n' +
-'    // Metro creates .c cache during bundle execution, so we use a getter\n' +
-'    Object.defineProperty(globalObj.__r, \'c\', {\n' +
-'      get: function() {\n' +
-'        return originalRequire.c;\n' +
-'      },\n' +
-'      set: function(value) {\n' +
-'        originalRequire.c = value;\n' +
-'      },\n' +
-'      configurable: true,\n' +
-'      enumerable: true\n' +
-'    });\n' +
-'    console.log(\'[Bundle] ✅ Forwarding .c property to original require\');\n' +
-'\n' +
-'    console.log(\'[Bundle] ✅ Metro require interceptor installed!\');\n' +
-'  } else {\n' +
-'    console.warn(\'[Bundle] ⚠️ Metro __r not found, falling back to global replacement\');\n' +
-'    // Fallback: replace in global objects\n' +
-'    this.ReactNative.Image = WrappedImage;\n' +
-'    globalObj.ReactNative.Image = WrappedImage;\n' +
+'    // For real native modules, call original constructor\n' +
+'    return OriginalNativeEventEmitter.call(this, nativeModule);\n' +
+'  };\n' +
+'  SafeNativeEventEmitterConstructor.prototype = OriginalNativeEventEmitter.prototype;\n' +
+'  for (var key in OriginalNativeEventEmitter) {\n' +
+'    if (OriginalNativeEventEmitter.hasOwnProperty(key)) {\n' +
+'      SafeNativeEventEmitterConstructor[key] = OriginalNativeEventEmitter[key];\n' +
+'    }\n' +
 '  }\n' +
+'\n' +
+'  // Patch IMMEDIATELY before bundle code loads any modules\n' +
+'  this.ReactNative.NativeEventEmitter = SafeNativeEventEmitterConstructor;\n' +
+'  if (globalObj && globalObj.ReactNative) {\n' +
+'    globalObj.ReactNative.NativeEventEmitter = SafeNativeEventEmitterConstructor;\n' +
+'  }\n' +
+'  console.log(\'[Bundle] ✅ NativeEventEmitter patched FIRST - before any module loads\');\n' +
+'\n' +
+'  // SKIP: Image wrapping removed - accessing this.ReactNative.Image triggers\n' +
+'  // NativeEventEmitter crash before patch can help. Will revisit later.\n' +
+'  console.log(\'[Bundle] ⚠️ Skipping Image wrapping to avoid NativeEventEmitter crash\');\n' +
 '\n' +
 '  // CRITICAL: Clear module 0 cache BEFORE executing bundle\n' +
 '  // This must run before __r(0) is called\n' +
@@ -450,11 +459,19 @@ async function bundle() {
 '  // (Hot reload wrappers are now INJECTED into the bundle itself)\n' +
 code +
 '\n' +
+'\n' +
+'  // Set bundle tracking globals (using globalObj which is properly detected)\n' +
+'  globalObj.BUNDLE_ID = ' + bundleId + ';\n' +
+'  globalObj.BUNDLE_TIME = "' + bundleTime + '";\n' +
+'  console.log("[BUNDLE_EXECUTED] ID: ' + bundleId + ', COUNT: 22222");\n' +
+'  console.log("[BUNDLE_METADATA] BUNDLE_ID set to:", globalObj.BUNDLE_ID);\n' +
 '}.call(this));\n';
+
+  const finalCode = wrappedCode;
 
   // Output to stdout so metro-server can capture it
   console.log('__BUNDLE_START__');
-  process.stdout.write(wrappedCode);
+  process.stdout.write(finalCode);
   console.log('\n__BUNDLE_END__');
 }
 

@@ -8,7 +8,9 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 // console.log('[App] logoImage type:', typeof logoImage);
 
 export default function App() {
-  const [count, setCount] = useState(77777); // METRO AUTO-RELOAD TEST!
+  const [count, setCount] = useState(333333); // SIXTH TEST - Triple consecutive!
+
+  console.log('🔥🔥🔥 APP.TSX LOADED - COUNT:', 333333, '🔥🔥🔥');
 
   useEffect(() => {
     console.log('🚀 App mounted! Console logging is working!');
@@ -38,7 +40,7 @@ export default function App() {
       <Text style={styles.title}>METRO AUTO-RELOAD! 🚀</Text>
 
       <Text style={styles.subtitle}>
-        If you see 99999, Metro auto-reload WORKS! ⚡️
+        If you see 66666, NativeEventEmitter fix WORKS! ⚡️
       </Text>
 
       <View style={styles.counterBox}>
