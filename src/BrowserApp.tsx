@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { ConnectionManager, generateSessionId } from './services/connection';
-import { ProjectManager } from './services/project-manager';
+import { ProjectManager, BundleMetrics } from './services/project-manager';
 import { ConsolePanel, ConsoleLog } from './components/ConsolePanel';
 import { DeviceList, Device } from './components/DeviceList';
+import { Toast, ToastType } from './components/Toast';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
@@ -17,6 +18,8 @@ function BrowserApp() {
   const [useMetro, setUseMetro] = useState<boolean>(false);
   const [autoReload, setAutoReload] = useState<boolean>(false);
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
+  const [lastBundleMetrics, setLastBundleMetrics] = useState<BundleMetrics | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
 
   const connectionRef = useRef<ConnectionManager | null>(null);
   const projectManagerRef = useRef<ProjectManager | null>(null);
@@ -25,13 +28,36 @@ function BrowserApp() {
   useEffect(() => {
     initializeSession();
 
+    // Set up keyboard shortcuts
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Cmd+R or Ctrl+R: Trigger bundle reload
+      if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
+        e.preventDefault();
+        if (projectManagerRef.current && autoReload) {
+          console.log('⌨️  Keyboard shortcut: Reloading bundle (Cmd+R)');
+          projectManagerRef.current.triggerUpdate();
+        }
+      }
+
+      // Cmd+K or Ctrl+K: Clear console logs
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        console.log('⌨️  Keyboard shortcut: Clearing console (Cmd+K)');
+        clearLogs();
+        setToast({ message: 'Console cleared', type: 'info' });
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
+      window.removeEventListener('keydown', handleKeyDown);
       if (connectionRef.current) {
         connectionRef.current.disconnect();
         connectionRef.current = null;
       }
     };
-  }, []);
+  }, [autoReload]);
 
   const initializeSession = async () => {
     try {
@@ -168,6 +194,16 @@ function BrowserApp() {
           useMetro: useMetro,
         });
 
+        // Subscribe to bundle metrics
+        projectManager.setOnMetrics((metrics) => {
+          setLastBundleMetrics(metrics);
+          // Show success toast
+          setToast({
+            message: `Bundle sent! ${metrics.sizeKB} KB in ${metrics.timeMs}ms`,
+            type: 'success'
+          });
+        });
+
         await projectManager.start(connectionRef.current);
         projectManagerRef.current = projectManager;
         setAutoReload(true);
@@ -285,6 +321,27 @@ function BrowserApp() {
                 <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#666' }}>
                   {autoReload ? 'Watching for file changes...' : 'Watch project and auto-send updates'}
                 </p>
+                {/* Bundle metrics */}
+                {autoReload && lastBundleMetrics && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '6px 10px',
+                    background: '#f0f9ff',
+                    borderRadius: '6px',
+                    border: '1px solid #bfdbfe',
+                    display: 'inline-flex',
+                    gap: '12px',
+                    fontSize: '11px',
+                    fontFamily: 'monospace'
+                  }}>
+                    <span style={{ color: '#3b82f6', fontWeight: '600' }}>
+                      📦 {lastBundleMetrics.sizeKB} KB
+                    </span>
+                    <span style={{ color: '#10b981', fontWeight: '600' }}>
+                      ⚡ {lastBundleMetrics.timeMs}ms
+                    </span>
+                  </div>
+                )}
               </div>
               <button
                 onClick={toggleAutoReload}
@@ -348,6 +405,38 @@ function BrowserApp() {
                 </label>
               </div>
             )}
+
+            {/* Keyboard shortcuts hint */}
+            {autoReload && (
+              <div style={{
+                marginTop: '8px',
+                padding: '8px 12px',
+                background: '#f8f9fa',
+                borderRadius: '6px',
+                fontSize: '11px',
+                color: '#666',
+                display: 'flex',
+                gap: '16px',
+                justifyContent: 'center'
+              }}>
+                <span>⌨️ <kbd style={{
+                  padding: '2px 6px',
+                  background: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: '3px',
+                  fontFamily: 'monospace',
+                  fontSize: '10px'
+                }}>Cmd+R</kbd> Reload</span>
+                <span>⌨️ <kbd style={{
+                  padding: '2px 6px',
+                  background: 'white',
+                  border: '1px solid #ddd',
+                  borderRadius: '3px',
+                  fontFamily: 'monospace',
+                  fontSize: '10px'
+                }}>Cmd+K</kbd> Clear Console</span>
+              </div>
+            )}
           </div>
 
           {/* Manual bundle button */}
@@ -386,6 +475,15 @@ function BrowserApp() {
       <footer className="footer">
         <p className="footer__text">v0.1.0 • Browser Test Mode</p>
       </footer>
+
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }
