@@ -201,6 +201,13 @@ export default function App() {
             <Text style={styles.title}>Apptuner</Text>
             <Text style={styles.subtitle}>Scan QR code to connect</Text>
             <QRCodeScanner onScan={handleQRScan} />
+            <View style={styles.skipButtonContainer}>
+              <TouchableOpacity
+                style={styles.skipButton}
+                onPress={() => handleQRScan('apptuner://connect/testmetroreload')}>
+                <Text style={styles.skipButtonText}>Skip QR / Manual Connect</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         );
 
@@ -415,6 +422,22 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: 16,
     color: '#ffffff',
+    fontWeight: '500',
+  },
+  skipButtonContainer: {
+    marginTop: 24,
+    width: '100%',
+    alignItems: 'center',
+  },
+  skipButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    backgroundColor: '#f5f5f7',
+    borderRadius: 8,
+  },
+  skipButtonText: {
+    fontSize: 16,
+    color: '#007aff',
     fontWeight: '500',
   },
 });

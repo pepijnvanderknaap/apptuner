@@ -229,11 +229,11 @@ export class ConnectionManager {
         this.lastPingTime = Date.now();
         this.send('ping', { timestamp: this.lastPingTime });
 
-        // Expect pong within 5 seconds
+        // Expect pong within 15 seconds (increased from 5s for network stability)
         this.pongTimeout = setTimeout(() => {
           console.warn('Pong timeout - connection may be dead');
           this.ws?.close(); // Triggers reconnect
-        }, 5000);
+        }, 15000);
       }
     }, 30000);
   }

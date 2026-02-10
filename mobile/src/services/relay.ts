@@ -204,7 +204,8 @@ export class RelayConnection {
         break;
 
       case 'error':
-        console.error('[Relay] Error from relay:', message.error);
+        // Silently handle relay errors to prevent console log feedback loop
+        // console.error('[Relay] Error from relay:', message.error);
         break;
 
       default:

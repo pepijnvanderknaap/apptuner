@@ -35,8 +35,8 @@ function BrowserApp() {
 
   const initializeSession = async () => {
     try {
-      // Generate session ID and URL
-      const sid = generateSessionId();
+      // Use fixed session ID for development (matches Skip QR button)
+      const sid = 'testmetroreload';
       setSessionId(sid);
       const url = `apptuner://connect/${sid}`;
       setSessionUrl(url);

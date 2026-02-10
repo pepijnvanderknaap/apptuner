@@ -22,6 +22,7 @@ export default defineConfig({
     'process.versions.node': JSON.stringify('18.0.0'),
   },
   optimizeDeps: {
-    exclude: ['esbuild'],
+    exclude: ['esbuild', 'react-native'],
+    entries: ['src/**/*.{ts,tsx}', '!src/**/*.test.{ts,tsx}', '!test-app/**', '!mobile/**'],
   },
 });
