@@ -8,11 +8,11 @@ function App() {
   return React.createElement(
     ScrollView,
     { style: styles.container, contentContainerStyle: styles.contentContainer },
-    React.createElement(Text, { style: styles.title }, 'AUTO-UPDATE SUCCESS! ✅🎉'),
+    React.createElement(Text, { style: styles.title }, 'AUTO-RELOAD WORKS! 🎉✨'),
     React.createElement(
       Text,
       { style: styles.subtitle },
-      'No refresh needed - it just works! 🔥'
+      'Magic auto-reload in action! ⚡️💫'
     ),
     React.createElement(
       View,
@@ -26,7 +26,7 @@ function App() {
         style: styles.button,
         onPress: () => setCount(count + 1)
       },
-      React.createElement(Text, { style: styles.buttonText }, 'Tap me!')
+      React.createElement(Text, { style: styles.buttonText }, 'CLICK HERE!')
     ),
     React.createElement(
       TouchableOpacity,
@@ -80,10 +80,10 @@ const styles = StyleSheet.create({
   counterValue: {
     fontSize: 64,
     fontWeight: 'bold',
-    color: '#007AFF',
+    color: '#FF2D55',
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#34C759',
     paddingHorizontal: 40,
     paddingVertical: 16,
     borderRadius: 12,

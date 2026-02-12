@@ -154,7 +154,7 @@ export class RelaySession {
 
     // Set up close handler
     ws.addEventListener('close', (event) => {
-      this.handleClose(clientType, event.code, event.reason);
+      this.handleClose(ws, clientType, event.code, event.reason);
     });
 
     // Set up error handler
@@ -186,11 +186,8 @@ export class RelaySession {
         return;
       }
 
-      console.log(`Message from ${from}: ${message.type}`);
-
-      // Handle ping/pong for health monitoring
+      // Handle ping/pong for health monitoring (disabled on desktop, but handle if received)
       if (message.type === 'ping') {
-        // Respond with pong immediately
         const source = from === 'desktop' ? this.desktopWs : this.mobileWs;
         if (source && source.readyState === WebSocket.READY_STATE_OPEN) {
           this.sendTo(source, {
@@ -235,26 +232,32 @@ export class RelaySession {
   /**
    * Handle WebSocket close
    */
-  private handleClose(clientType: 'desktop' | 'mobile', code: number, reason: string) {
+  private handleClose(ws: WebSocket, clientType: 'desktop' | 'mobile', code: number, reason: string) {
     console.log(`${clientType} disconnected: ${code} ${reason}`);
 
     if (clientType === 'desktop') {
-      this.desktopWs = null;
-      // Notify mobile
-      if (this.mobileWs) {
-        this.sendToMobile({
-          type: 'desktop_disconnected',
-          timestamp: Date.now(),
-        });
+      // Only clear if this is the current desktop connection
+      if (this.desktopWs === ws) {
+        this.desktopWs = null;
+        // Notify mobile
+        if (this.mobileWs) {
+          this.sendToMobile({
+            type: 'desktop_disconnected',
+            timestamp: Date.now(),
+          });
+        }
       }
     } else {
-      this.mobileWs = null;
-      // Notify desktop
-      if (this.desktopWs) {
-        this.sendToDesktop({
-          type: 'mobile_disconnected',
-          timestamp: Date.now(),
-        });
+      // Only clear if this is the current mobile connection
+      if (this.mobileWs === ws) {
+        this.mobileWs = null;
+        // Notify desktop
+        if (this.desktopWs) {
+          this.sendToDesktop({
+            type: 'mobile_disconnected',
+            timestamp: Date.now(),
+          });
+        }
       }
     }
 

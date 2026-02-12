@@ -25,10 +25,19 @@ function BrowserApp() {
   const projectManagerRef = useRef<ProjectManager | null>(null);
   const isTogglingRef = useRef<boolean>(false);
 
+  // Initialize session once on mount
   useEffect(() => {
     initializeSession();
 
-    // Set up keyboard shortcuts
+    return () => {
+      // Don't disconnect on cleanup - let the connection persist
+      // This prevents StrictMode's intentional unmount/remount from killing the connection
+      // The browser will close the WebSocket when the tab is actually closed
+    };
+  }, []);
+
+  // Set up keyboard shortcuts (re-run when autoReload changes)
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Cmd+R or Ctrl+R: Trigger bundle reload
       if ((e.metaKey || e.ctrlKey) && e.key === 'r') {
@@ -52,10 +61,6 @@ function BrowserApp() {
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-      if (connectionRef.current) {
-        connectionRef.current.disconnect();
-        connectionRef.current = null;
-      }
     };
   }, [autoReload]);
 
@@ -66,6 +71,15 @@ function BrowserApp() {
       setSessionId(sid);
       const url = `apptuner://connect/${sid}`;
       setSessionUrl(url);
+
+      // Check if connection already exists (prevents StrictMode double-mounting issues)
+      if (connectionRef.current) {
+        const status = connectionRef.current.getStatus();
+        if (status === 'connected' || status === 'connecting') {
+          console.log('Connection already exists, skipping initialization');
+          return;
+        }
+      }
 
       // Initialize connection manager
       const connection = new ConnectionManager(sid);
