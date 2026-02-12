@@ -8,11 +8,11 @@ function App() {
   return React.createElement(
     ScrollView,
     { style: styles.container, contentContainerStyle: styles.contentContainer },
-    React.createElement(Text, { style: styles.title }, 'AUTO-RELOAD WORKS! 🎉✨'),
+    React.createElement(Text, { style: styles.title }, 'THIRD RELOAD! 🌟💯'),
     React.createElement(
       Text,
       { style: styles.subtitle },
-      'Magic auto-reload in action! ⚡️💫'
+      'Testing consecutive reloads! 🔥🚀'
     ),
     React.createElement(
       View,
