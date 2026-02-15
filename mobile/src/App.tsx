@@ -115,6 +115,39 @@ export default function App() {
     };
   }, [sessionId]);
 
+  // Cleanup on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      // Stop console interceptor
+      if (consoleInterceptorRef.current) {
+        consoleInterceptorRef.current.stop();
+        consoleInterceptorRef.current = null;
+      }
+
+      // Clean up subscriptions
+      if (unsubscribeStatusRef.current) {
+        unsubscribeStatusRef.current();
+        unsubscribeStatusRef.current = null;
+      }
+      if (unsubscribeBundleRef.current) {
+        unsubscribeBundleRef.current();
+        unsubscribeBundleRef.current = null;
+      }
+
+      // Disconnect relay connection
+      if (connectionRef.current) {
+        connectionRef.current.disconnect();
+        connectionRef.current = null;
+      }
+
+      // Clean up executor
+      if (executorRef.current) {
+        executorRef.current.cleanup();
+        executorRef.current = null;
+      }
+    };
+  }, []);
+
   // Handle QR code scan
   const handleQRScan = async (data: string) => {
     try {
