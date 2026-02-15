@@ -33,12 +33,24 @@ function BrowserApp() {
   const connectionRef = useRef<ConnectionManager | null>(null);
   const projectManagerRef = useRef<ProjectManager | null>(null);
   const isTogglingRef = useRef<boolean>(false);
+  const unsubscribeStatusRef = useRef<(() => void) | null>(null);
+  const unsubscribeMessageRef = useRef<(() => void) | null>(null);
 
   // Initialize session once on mount
   useEffect(() => {
     initializeSession();
 
     return () => {
+      // Clean up event handlers to prevent memory leaks
+      if (unsubscribeStatusRef.current) {
+        unsubscribeStatusRef.current();
+        unsubscribeStatusRef.current = null;
+      }
+      if (unsubscribeMessageRef.current) {
+        unsubscribeMessageRef.current();
+        unsubscribeMessageRef.current = null;
+      }
+
       // Don't disconnect on cleanup - let the connection persist
       // This prevents StrictMode's intentional unmount/remount from killing the connection
       // The browser will close the WebSocket when the tab is actually closed
@@ -106,8 +118,8 @@ function BrowserApp() {
       const connection = new ConnectionManager(sid);
       connectionRef.current = connection;
 
-      // Subscribe to connection status changes
-      connection.onStatusChange((status) => {
+      // Subscribe to connection status changes (store unsubscribe function)
+      unsubscribeStatusRef.current = connection.onStatusChange((status) => {
         const stateMap: Record<string, ConnectionState> = {
           disconnected: 'disconnected',
           connecting: 'connecting',
@@ -118,8 +130,8 @@ function BrowserApp() {
         setConnectionState(stateMap[status] || 'disconnected');
       });
 
-      // Subscribe to messages from mobile devices
-      connection.onMessage((data) => {
+      // Subscribe to messages from mobile devices (store unsubscribe function)
+      unsubscribeMessageRef.current = connection.onMessage((data) => {
         // Handle console logs
         if (data.type === 'console_log' && data.payload) {
           const consoleLog: ConsoleLog = {
