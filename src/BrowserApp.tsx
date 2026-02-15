@@ -1,16 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
-import { QRCodeSVG } from 'qrcode.react';
+import QRCode from 'qrcode';
 import { ConnectionManager, generateSessionId } from './services/connection';
 import { ProjectManager, BundleMetrics } from './services/project-manager';
 import { ConsolePanel, ConsoleLog } from './components/ConsolePanel';
-import { DeviceList, Device } from './components/DeviceList';
+import { Device } from './components/DeviceList';
 import { Toast, ToastType } from './components/Toast';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 function BrowserApp() {
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
-  const [sessionUrl, setSessionUrl] = useState<string>('');
   const [sessionId, setSessionId] = useState<string>('');
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
@@ -20,6 +19,8 @@ function BrowserApp() {
   const [consoleLogs, setConsoleLogs] = useState<ConsoleLog[]>([]);
   const [lastBundleMetrics, setLastBundleMetrics] = useState<BundleMetrics | null>(null);
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
+  const [copySuccess, setCopySuccess] = useState<boolean>(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
   const connectionRef = useRef<ConnectionManager | null>(null);
   const projectManagerRef = useRef<ProjectManager | null>(null);
@@ -64,21 +65,33 @@ function BrowserApp() {
     };
   }, [autoReload]);
 
+  // Generate QR code when session ID changes
+  useEffect(() => {
+    if (sessionId) {
+      // Generate QR code with proper URL format that mobile app expects
+      const qrData = `apptuner://connect/${sessionId}`;
+      QRCode.toDataURL(qrData, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      }).then(setQrCodeUrl).catch(console.error);
+    }
+  }, [sessionId]);
+
   const initializeSession = async () => {
     try {
-      // Use fixed session ID for development (matches Skip QR button)
-      const sid = 'testmetroreload';
+      // Generate random 6-character session ID
+      const sid = generateSessionId();
       setSessionId(sid);
-      const url = `apptuner://connect/${sid}`;
-      setSessionUrl(url);
 
-      // Check if connection already exists (prevents StrictMode double-mounting issues)
+      // Disconnect any existing connection first
       if (connectionRef.current) {
-        const status = connectionRef.current.getStatus();
-        if (status === 'connected' || status === 'connecting') {
-          console.log('Connection already exists, skipping initialization');
-          return;
-        }
+        console.log('Disconnecting old connection before creating new one');
+        connectionRef.current.disconnect();
+        connectionRef.current = null;
       }
 
       // Initialize connection manager
@@ -111,7 +124,6 @@ function BrowserApp() {
 
         // Handle mobile device connection
         if (data.type === 'mobile_connected') {
-          // For now, use a single default device since we're in single-device mode
           const newDevice: Device = {
             deviceId: 'mobile-1',
             deviceInfo: {
@@ -124,7 +136,6 @@ function BrowserApp() {
             lastActivity: data.timestamp || Date.now(),
           };
           setDevices([newDevice]);
-          // Default to broadcast mode (null = all devices)
           setSelectedDeviceId(null);
         }
 
@@ -132,6 +143,12 @@ function BrowserApp() {
         if (data.type === 'mobile_disconnected') {
           setDevices([]);
           setSelectedDeviceId(null);
+
+          // Stop auto-reload when last device disconnects
+          setAutoReload(false);
+          if (projectManagerRef.current) {
+            projectManagerRef.current.stopWatching();
+          }
         }
       });
 
@@ -146,38 +163,8 @@ function BrowserApp() {
     }
   };
 
-  const sendTestBundle = async () => {
-    console.log('🔵 Send Test Bundle clicked!');
-
-    if (!connectionRef.current) {
-      console.error('❌ No connection reference');
-      alert('Error: No connection reference');
-      return;
-    }
-
-    if (connectionState !== 'connected') {
-      console.error('❌ Not connected. Current state:', connectionState);
-      alert(`Error: Not connected. State: ${connectionState}`);
-      return;
-    }
-
-    try {
-      // Read the test bundle (plain JavaScript)
-      const response = await fetch('/test-bundle.js');
-      const testBundle = await response.text();
-
-      console.log('✅ Sending bundle, size:', testBundle.length, 'bytes');
-      connectionRef.current.sendBundleUpdate(testBundle);
-      console.log('✅ Test bundle sent!');
-      alert('Bundle sent! Check your mobile device.');
-    } catch (error) {
-      console.error('❌ Error reading test bundle:', error);
-      alert('Error: Could not load test bundle');
-    }
-  };
-
   const toggleAutoReload = async () => {
-    // Prevent double-calls (double-click or React Strict Mode)
+    // Prevent double-calls
     if (isTogglingRef.current) {
       console.log('⚠️ Toggle already in progress, ignoring');
       return;
@@ -211,7 +198,6 @@ function BrowserApp() {
         // Subscribe to bundle metrics
         projectManager.setOnMetrics((metrics) => {
           setLastBundleMetrics(metrics);
-          // Show success toast
           setToast({
             message: `Bundle sent! ${metrics.sizeKB} KB in ${metrics.timeMs}ms`,
             type: 'success'
@@ -232,263 +218,464 @@ function BrowserApp() {
     setConsoleLogs([]);
   };
 
-  const getConnectionStatusText = (): string => {
+  const copySessionId = () => {
+    navigator.clipboard.writeText(sessionId);
+    setCopySuccess(true);
+    setToast({ message: 'Session ID copied!', type: 'success' });
+    setTimeout(() => setCopySuccess(false), 2000);
+  };
+
+  const getStatusColor = () => {
     switch (connectionState) {
-      case 'connecting':
-        return 'Connecting to relay...';
-      case 'reconnecting':
-        return 'Reconnecting...';
-      case 'connected':
-        const baseText = devices.length > 0 ? `Connected - ${devices.length} device(s)` : 'Waiting for mobile device...';
+      case 'connected': return devices.length > 0 ? '#34C759' : '#FF9500';
+      case 'connecting': case 'reconnecting': return '#007AFF';
+      case 'error': return '#FF3B30';
+      default: return '#8E8E93';
+    }
+  };
 
-        // Add latency indicator if connected
-        if (connectionRef.current && devices.length > 0) {
-          const latency = connectionRef.current.getLatency();
-          const quality = connectionRef.current.getConnectionQuality();
-
-          if (latency > 0) {
-            const qualityEmoji = quality === 'good' ? '🟢' : quality === 'fair' ? '🟡' : '🔴';
-            return `${baseText} ${qualityEmoji} ${latency}ms`;
-          }
-        }
-
-        return baseText;
-      case 'error':
-        return 'Connection error - retrying...';
-      default:
-        return 'Waiting for device...';
+  const getStatusText = () => {
+    switch (connectionState) {
+      case 'connecting': return 'Connecting...';
+      case 'reconnecting': return 'Reconnecting...';
+      case 'connected': return devices.length > 0 ? 'Connected' : 'Waiting for Device';
+      case 'error': return 'Connection Error';
+      default: return 'Disconnected';
     }
   };
 
   return (
-    <div className="app">
+    <div style={{
+      minHeight: '100vh',
+      background: '#fafafa',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    }}>
       {/* Header */}
-      <header className="header">
-        <h1 className="header__title">Apptuner Test</h1>
-        <p className="header__subtitle">Browser Testing Mode</p>
-      </header>
-
-      {/* Main content */}
-      <div className="card card--elevated" style={{ marginTop: '40px' }}>
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          <h2 style={{ marginBottom: '10px', fontSize: '18px' }}>Session ID</h2>
-          <code style={{
-            padding: '8px 12px',
-            background: '#f5f5f5',
-            borderRadius: '6px',
-            fontSize: '12px',
-            fontFamily: 'monospace'
+      <div style={{
+        background: 'white',
+        borderBottom: '1px solid #eaeaea',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100
+      }}>
+        <div style={{
+          maxWidth: '800px',
+          margin: '0 auto',
+          padding: '16px 24px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between'
+        }}>
+          <h1 style={{
+            fontSize: '18px',
+            fontWeight: '600',
+            color: '#000',
+            margin: 0
           }}>
-            {sessionId || 'Generating...'}
-          </code>
-        </div>
-      </div>
+            AppTuner
+          </h1>
 
-      {/* QR Code Section */}
-      {sessionUrl && (
-        <div className="card card--elevated" style={{ marginTop: '20px' }}>
-          <div className="qr-section">
-            <div className="qr-code">
-              <QRCodeSVG value={sessionUrl} size={200} />
-            </div>
-            <p className="qr-section__instruction">
-              Scan with Apptuner mobile app
-            </p>
-            <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-              {sessionUrl}
-            </p>
+          {/* Status */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            fontSize: '14px',
+            color: '#666'
+          }}>
+            <div style={{
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              background: getStatusColor()
+            }} />
+            {getStatusText()}
           </div>
         </div>
-      )}
-
-      {/* Connection status */}
-      <div className={`connection-status connection-status--${connectionState}`} style={{ marginTop: '20px' }}>
-        <span className="connection-status__dot"></span>
-        <span>{getConnectionStatusText()}</span>
       </div>
 
-      {/* Device List */}
-      {connectionState === 'connected' && (
-        <div style={{ marginTop: '20px' }}>
-          <DeviceList
-            devices={devices}
-            selectedDeviceId={selectedDeviceId}
-            onSelectDevice={setSelectedDeviceId}
-          />
-        </div>
-      )}
-
-      {/* Controls */}
-      {connectionState === 'connected' && (
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          {/* Auto-reload toggle */}
+      {/* Main Content */}
+      <div style={{
+        maxWidth: '800px',
+        margin: '0 auto',
+        padding: '32px 24px',
+      }}>
+        {/* STEP 1: Connect Device (only show when NOT connected) */}
+        {devices.length === 0 && (
           <div style={{
             background: 'white',
-            borderRadius: '12px',
-            padding: '20px',
-            marginBottom: '16px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            border: '1px solid #eaeaea',
+            borderRadius: '8px',
+            padding: '48px 32px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>Auto-Reload</h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#666' }}>
-                  {autoReload ? 'Watching for file changes...' : 'Watch project and auto-send updates'}
-                </p>
-                {/* Bundle metrics */}
-                {autoReload && lastBundleMetrics && (
-                  <div style={{
-                    marginTop: '8px',
-                    padding: '6px 10px',
-                    background: '#f0f9ff',
-                    borderRadius: '6px',
-                    border: '1px solid #bfdbfe',
-                    display: 'inline-flex',
-                    gap: '12px',
-                    fontSize: '11px',
-                    fontFamily: 'monospace'
-                  }}>
-                    <span style={{ color: '#3b82f6', fontWeight: '600' }}>
-                      📦 {lastBundleMetrics.sizeKB} KB
-                    </span>
-                    <span style={{ color: '#10b981', fontWeight: '600' }}>
-                      ⚡ {lastBundleMetrics.timeMs}ms
-                    </span>
-                  </div>
-                )}
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: '600',
+              color: '#000',
+              margin: '0 0 12px 0'
+            }}>
+              Connect Your Mobile Device
+            </h2>
+            <p style={{
+              fontSize: '16px',
+              color: '#666',
+              margin: '0 0 48px 0',
+              maxWidth: '500px',
+              lineHeight: '1.5'
+            }}>
+              Open the AppTuner app on your phone and scan this QR code
+            </p>
+
+            {/* Bigger QR Code */}
+            {qrCodeUrl && (
+              <div style={{
+                padding: '24px',
+                background: 'white',
+                border: '2px solid #eaeaea',
+                borderRadius: '12px',
+                marginBottom: '32px'
+              }}>
+                <img
+                  src={qrCodeUrl}
+                  alt="QR Code"
+                  style={{
+                    width: '280px',
+                    height: '280px',
+                    display: 'block'
+                  }}
+                />
               </div>
-              <button
-                onClick={toggleAutoReload}
-                style={{
-                  padding: '8px 16px',
-                  background: autoReload ? '#FF3B30' : '#34C759',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '14px',
+            )}
+
+            {/* Manual Code Below QR */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '16px'
+            }}>
+              <div style={{
+                fontSize: '15px',
+                color: '#666',
+                fontWeight: '500'
+              }}>
+                Or enter this code manually:
+              </div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '16px',
+                flexWrap: 'wrap',
+                justifyContent: 'center'
+              }}>
+                <code style={{
+                  fontSize: '48px',
+                  fontFamily: 'Menlo, Monaco, monospace',
                   fontWeight: '600',
-                  cursor: 'pointer',
-                }}
-              >
-                {autoReload ? 'Stop' : 'Start'}
-              </button>
+                  color: '#000',
+                  letterSpacing: '0.1em'
+                }}>
+                  {sessionId || '------'}
+                </code>
+                <button
+                  onClick={copySessionId}
+                  style={{
+                    padding: '12px 24px',
+                    background: copySuccess ? '#000' : 'white',
+                    color: copySuccess ? 'white' : '#000',
+                    border: '2px solid #000',
+                    borderRadius: '8px',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!copySuccess) {
+                      e.currentTarget.style.background = '#000';
+                      e.currentTarget.style.color = 'white';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!copySuccess) {
+                      e.currentTarget.style.background = 'white';
+                      e.currentTarget.style.color = '#000';
+                    }
+                  }}
+                >
+                  {copySuccess ? '✓ Copied' : 'Copy Code'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* STEP 2: Start Auto-Reload (show when connected but NOT started) */}
+        {devices.length > 0 && !autoReload && (
+          <div style={{
+            background: 'white',
+            border: '1px solid #eaeaea',
+            borderRadius: '8px',
+            padding: '48px 32px',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              width: '48px',
+              height: '48px',
+              borderRadius: '50%',
+              background: '#34C759',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '28px',
+              marginBottom: '24px'
+            }}>
+              ✓
             </div>
 
-            {/* Project path input */}
-            <div style={{ marginTop: '12px' }}>
-              <label style={{ fontSize: '12px', color: '#666', display: 'block', marginBottom: '4px' }}>
-                Project Path:
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: '600',
+              color: '#000',
+              margin: '0 0 12px 0'
+            }}>
+              Device Connected!
+            </h2>
+            <p style={{
+              fontSize: '16px',
+              color: '#666',
+              margin: '0 0 48px 0',
+              maxWidth: '500px',
+              lineHeight: '1.5'
+            }}>
+              Your mobile device is ready. Start auto-reload to see your changes instantly.
+            </p>
+
+            {/* Big Start Button */}
+            <button
+              onClick={toggleAutoReload}
+              style={{
+                padding: '20px 60px',
+                background: '#000',
+                color: 'white',
+                border: 'none',
+                borderRadius: '12px',
+                fontSize: '20px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                marginBottom: '40px'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.transform = 'scale(1.05)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+              }}
+            >
+              Start Auto-Reload
+            </button>
+
+            {/* Project Path */}
+            <div style={{
+              width: '100%',
+              maxWidth: '500px'
+            }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                color: '#666',
+                fontWeight: '500',
+                marginBottom: '8px',
+                textAlign: 'left'
+              }}>
+                Project Path
               </label>
               <input
                 type="text"
                 value={projectPath}
                 onChange={(e) => setProjectPath(e.target.value)}
-                disabled={autoReload}
-                placeholder="public or test-app"
+                placeholder="e.g., public or test-app"
                 style={{
                   width: '100%',
-                  padding: '8px 12px',
-                  border: '1px solid #ddd',
-                  borderRadius: '6px',
-                  fontSize: '14px',
-                  fontFamily: 'monospace',
-                  background: autoReload ? '#f5f5f5' : 'white',
+                  padding: '12px 16px',
+                  border: '1px solid #eaeaea',
+                  borderRadius: '8px',
+                  fontSize: '15px',
+                  fontFamily: 'Menlo, Monaco, monospace',
+                  background: 'white',
+                  color: '#000',
+                  outline: 'none',
+                  transition: 'border-color 0.15s',
+                  boxSizing: 'border-box'
                 }}
+                onFocus={(e) => e.currentTarget.style.borderColor = '#000'}
+                onBlur={(e) => e.currentTarget.style.borderColor = '#eaeaea'}
               />
-            </div>
-
-            {/* Metro bundler toggle */}
-            {projectPath !== 'public' && (
-              <div style={{ marginTop: '12px', padding: '12px', background: '#f8f9fa', borderRadius: '6px' }}>
-                <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+              {projectPath !== 'public' && (
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  marginTop: '12px'
+                }}>
                   <input
                     type="checkbox"
                     checked={useMetro}
                     onChange={(e) => setUseMetro(e.target.checked)}
-                    disabled={autoReload}
-                    style={{ marginRight: '8px', width: '16px', height: '16px' }}
+                    style={{
+                      width: '18px',
+                      height: '18px',
+                      cursor: 'pointer'
+                    }}
                   />
-                  <div>
-                    <span style={{ fontSize: '14px', fontWeight: '600', color: '#333' }}>
-                      Use Metro Bundler
-                    </span>
-                    <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: '#666' }}>
-                      Bundle TypeScript/JSX files on-the-fly (experimental)
-                    </p>
-                  </div>
+                  <span style={{
+                    fontSize: '14px',
+                    color: '#000',
+                    fontWeight: '500'
+                  }}>
+                    Use Metro Bundler
+                  </span>
                 </label>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+        )}
 
-            {/* Keyboard shortcuts hint */}
-            {autoReload && (
+        {/* STEP 3: Console (show when auto-reload is active) */}
+        {autoReload && (
+          <>
+            {/* Compact Control Bar at Top */}
+            <div style={{
+              background: 'white',
+              border: '1px solid #eaeaea',
+              borderRadius: '8px',
+              padding: '20px 24px',
+              marginBottom: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '20px'
+            }}>
+              {/* Left: Stop Button */}
+              <button
+                onClick={toggleAutoReload}
+                style={{
+                  padding: '12px 24px',
+                  background: '#000',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '0.85';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+              >
+                Stop
+              </button>
+
+              {/* Center: Project Path */}
               <div style={{
-                marginTop: '8px',
-                padding: '8px 12px',
-                background: '#f8f9fa',
-                borderRadius: '6px',
-                fontSize: '11px',
+                flex: 1,
+                minWidth: '200px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px'
+              }}>
+                <span style={{
+                  fontSize: '13px',
+                  color: '#666',
+                  fontWeight: '500'
+                }}>
+                  {projectPath}
+                </span>
+                {lastBundleMetrics && (
+                  <>
+                    <span style={{ color: '#eaeaea' }}>•</span>
+                    <span style={{
+                      fontSize: '13px',
+                      color: '#666'
+                    }}>
+                      <span style={{ fontWeight: '600', color: '#000' }}>{lastBundleMetrics.sizeKB}</span> KB
+                    </span>
+                    <span style={{ color: '#eaeaea' }}>•</span>
+                    <span style={{
+                      fontSize: '13px',
+                      color: '#666'
+                    }}>
+                      <span style={{ fontWeight: '600', color: '#000' }}>{lastBundleMetrics.timeMs}</span> ms
+                    </span>
+                  </>
+                )}
+              </div>
+
+              {/* Right: Keyboard Shortcuts */}
+              <div style={{
+                fontSize: '12px',
                 color: '#666',
                 display: 'flex',
                 gap: '16px',
-                justifyContent: 'center'
+                alignItems: 'center'
               }}>
-                <span>⌨️ <kbd style={{
-                  padding: '2px 6px',
-                  background: 'white',
-                  border: '1px solid #ddd',
-                  borderRadius: '3px',
-                  fontFamily: 'monospace',
-                  fontSize: '10px'
-                }}>Cmd+R</kbd> Reload</span>
-                <span>⌨️ <kbd style={{
-                  padding: '2px 6px',
-                  background: 'white',
-                  border: '1px solid #ddd',
-                  borderRadius: '3px',
-                  fontFamily: 'monospace',
-                  fontSize: '10px'
-                }}>Cmd+K</kbd> Clear Console</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <kbd style={{
+                    padding: '3px 7px',
+                    background: '#f5f5f5',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontFamily: 'Menlo, Monaco, monospace',
+                    fontSize: '11px',
+                    fontWeight: '500',
+                    color: '#333'
+                  }}>⌘R</kbd>
+                  <span>Reload</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <kbd style={{
+                    padding: '3px 7px',
+                    background: '#f5f5f5',
+                    border: '1px solid #ddd',
+                    borderRadius: '4px',
+                    fontFamily: 'Menlo, Monaco, monospace',
+                    fontSize: '11px',
+                    fontWeight: '500',
+                    color: '#333'
+                  }}>⌘K</kbd>
+                  <span>Clear</span>
+                </div>
               </div>
-            )}
-          </div>
+            </div>
 
-          {/* Manual bundle button */}
-          <button
-            onClick={sendTestBundle}
-            style={{
-              padding: '12px 24px',
-              background: '#007AFF',
-              color: 'white',
-              border: 'none',
+            {/* Console Panel */}
+            <div style={{
+              background: 'white',
+              border: '1px solid #eaeaea',
               borderRadius: '8px',
-              fontSize: '14px',
-              fontWeight: '600',
-              cursor: 'pointer',
-              width: '100%',
-            }}
-          >
-            Send Test Bundle
-          </button>
-        </div>
-      )}
-
-      {/* Console Panel */}
-      <div style={{
-        marginTop: '20px',
-        height: '400px',
-        minHeight: '300px',
-        maxHeight: '600px',
-      }}>
-        <ConsolePanel logs={consoleLogs} onClear={clearLogs} />
+              overflow: 'hidden',
+              height: '600px'
+            }}>
+              <ConsolePanel logs={consoleLogs} onClear={clearLogs} />
+            </div>
+          </>
+        )}
       </div>
-
-      <div className="spacer" />
-
-      {/* Footer */}
-      <footer className="footer">
-        <p className="footer__text">v0.1.0 • Browser Test Mode</p>
-      </footer>
 
       {/* Toast Notifications */}
       {toast && (
