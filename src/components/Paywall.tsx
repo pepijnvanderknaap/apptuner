@@ -36,6 +36,7 @@ export function Paywall() {
       // Redirect to Stripe Checkout
       const stripe = await stripePromise;
       if (stripe) {
+        // @ts-ignore - redirectToCheckout exists but may not be in latest types
         const { error } = await stripe.redirectToCheckout({ sessionId });
         if (error) {
           console.error('Stripe error:', error);

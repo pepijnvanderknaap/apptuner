@@ -65,19 +65,17 @@ export function ConsolePanel({ logs, onClear }: ConsolePanelProps) {
     }
   };
 
-  const getLevelIcon = (level: string): string => {
-    switch (level) {
-      case 'error':
-        return '❌';
-      case 'warn':
-        return '⚠️';
-      case 'info':
-        return 'ℹ️';
-      case 'debug':
-        return '🐛';
-      default:
-        return '📝';
-    }
+  const getLevelDot = (level: string): JSX.Element => {
+    const color = getLevelColor(level);
+    return (
+      <div style={{
+        width: '6px',
+        height: '6px',
+        borderRadius: '50%',
+        background: color,
+        marginTop: '6px'
+      }} />
+    );
   };
 
   const filteredLogs =
@@ -98,10 +96,9 @@ export function ConsolePanel({ logs, onClear }: ConsolePanelProps) {
     // Format logs in a clean, AI-friendly format
     const formattedLogs = filteredLogs.map((log) => {
       const timestamp = formatTimestamp(log.timestamp);
-      const levelIcon = getLevelIcon(log.level);
       const levelName = log.level.toUpperCase();
       const message = log.args.map(formatArg).join(' ');
-      return `[${timestamp}] ${levelIcon} ${levelName}: ${message}`;
+      return `[${timestamp}] ${levelName}: ${message}`;
     }).join('\n');
 
     navigator.clipboard.writeText(formattedLogs).then(() => {
@@ -133,7 +130,7 @@ export function ConsolePanel({ logs, onClear }: ConsolePanelProps) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-sm)' }}>
           <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: '600' }}>
-            📟 Console Logs
+            Console
           </span>
           {logs.length > 0 && (
             <span style={{
@@ -289,9 +286,9 @@ export function ConsolePanel({ logs, onClear }: ConsolePanelProps) {
                 gap: 'var(--space-sm)',
               }}
             >
-              <span style={{ fontSize: '14px', flexShrink: 0 }}>
-                {getLevelIcon(log.level)}
-              </span>
+              <div style={{ flexShrink: 0 }}>
+                {getLevelDot(log.level)}
+              </div>
               <span style={{
                 color: 'var(--text-tertiary)',
                 fontSize: '11px',

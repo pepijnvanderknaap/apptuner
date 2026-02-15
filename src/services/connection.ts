@@ -21,6 +21,7 @@ export class ConnectionManager {
   private latency = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private savedRelayUrl: string = '';
+  private shouldReconnect: boolean = true;
 
   constructor(sessionId: string) {
     this.sessionId = sessionId;
@@ -38,6 +39,7 @@ export class ConnectionManager {
 
     // Save relay URL for reconnection
     this.savedRelayUrl = relayUrl;
+    this.shouldReconnect = true; // Enable auto-reconnect
     this.updateStatus('connecting');
 
     try {
@@ -109,6 +111,7 @@ export class ConnectionManager {
    * Disconnect from relay
    */
   disconnect(): void {
+    this.shouldReconnect = false; // Prevent auto-reconnect
     this.stopHeartbeat();
     this.clearReconnectTimeout();
 
@@ -195,6 +198,12 @@ export class ConnectionManager {
   }
 
   private attemptReconnect(): void {
+    // Don't reconnect if explicitly disconnected
+    if (!this.shouldReconnect) {
+      console.log('Reconnection disabled after explicit disconnect');
+      return;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.log('Max reconnection attempts reached');
       this.updateStatus('error');
@@ -282,9 +291,13 @@ export class ConnectionManager {
 
 /**
  * Generate a unique session ID
+ * Creates a 6-character alphanumeric code (uppercase for clarity)
  */
 export function generateSessionId(): string {
-  return Array.from({ length: 2 }, () =>
-    Math.random().toString(36).substring(2, 15)
-  ).join('');
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed similar chars: 0/O, 1/I
+  let result = '';
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
 }

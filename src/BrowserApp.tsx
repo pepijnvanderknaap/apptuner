@@ -147,7 +147,7 @@ function BrowserApp() {
           // Stop auto-reload when last device disconnects
           setAutoReload(false);
           if (projectManagerRef.current) {
-            projectManagerRef.current.stopWatching();
+            projectManagerRef.current.stop();
           }
         }
       });

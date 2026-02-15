@@ -14,8 +14,11 @@ import {
   ActivityIndicator,
   SafeAreaView,
   LogBox,
+  AppState,
 } from 'react-native';
+import KeepAwake from 'react-native-keep-awake';
 import QRCodeScanner from './components/QRCodeScanner';
+import ManualEntry from './components/ManualEntry';
 import ConnectionStatus from './components/ConnectionStatus';
 import ErrorOverlay from './components/ErrorOverlay';
 import {RelayConnection} from './services/relay';
@@ -58,12 +61,37 @@ export default function App() {
   const [bundleVersion, setBundleVersion] = useState(0);
   const [showErrorOverlay, setShowErrorOverlay] = useState(false);
   const [errorStack, setErrorStack] = useState<string>('');
+  const [showManualEntry, setShowManualEntry] = useState(false);
 
   const connectionRef = useRef<RelayConnection | null>(null);
   const executorRef = useRef<BundleExecutor | null>(null);
   const consoleInterceptorRef = useRef<ConsoleInterceptor | null>(null);
   const unsubscribeStatusRef = useRef<(() => void) | null>(null);
   const unsubscribeBundleRef = useRef<(() => void) | null>(null);
+  const shouldReconnectRef = useRef<boolean>(true);
+
+  // Monitor app state changes for auto-reconnection
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      console.log('App state changed to:', nextAppState);
+
+      // When app comes to foreground, attempt to reconnect if we have a session
+      if (nextAppState === 'active' && sessionId && shouldReconnectRef.current) {
+        // Only reconnect if we're not already connected
+        const currentStatus = connectionRef.current?.getStatus();
+        if (!connectionRef.current || currentStatus === 'disconnected' || currentStatus === 'error') {
+          console.log('App returned to foreground, attempting to reconnect...');
+          connectToRelay(sessionId).catch(error => {
+            console.error('Auto-reconnect failed:', error);
+          });
+        }
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [sessionId]);
 
   // Handle QR code scan
   const handleQRScan = async (data: string) => {
@@ -90,9 +118,19 @@ export default function App() {
     }
   };
 
+  // Handle manual code entry
+  const handleManualEntry = (code: string) => {
+    // Construct the URL format that handleQRScan expects
+    const qrData = `apptuner://connect/${code}`;
+    handleQRScan(qrData);
+  };
+
   // Connect to Cloudflare relay
   const connectToRelay = async (sid: string) => {
     try {
+      // Enable auto-reconnection for this session
+      shouldReconnectRef.current = true;
+
       // Use production relay URL (or local network IP for development)
       const relayUrl =
         __DEV__
@@ -162,6 +200,9 @@ export default function App() {
 
   // Disconnect and go back to scanning
   const handleDisconnect = () => {
+    // Prevent auto-reconnection after explicit disconnect
+    shouldReconnectRef.current = false;
+
     // Clean up subscriptions
     if (unsubscribeStatusRef.current) {
       unsubscribeStatusRef.current();
@@ -190,22 +231,32 @@ export default function App() {
     setErrorMessage('');
     setShowErrorOverlay(false);
     setErrorStack('');
+    setShowManualEntry(false);
   };
 
   // Render based on app state
   const renderContent = () => {
     switch (appState) {
       case 'scanning':
+        if (showManualEntry) {
+          return (
+            <ManualEntry
+              onSubmit={handleManualEntry}
+              onBack={() => setShowManualEntry(false)}
+            />
+          );
+        }
+
         return (
           <View style={styles.container}>
-            <Text style={styles.title}>Apptuner</Text>
+            <Text style={styles.title}>AppTuner</Text>
             <Text style={styles.subtitle}>Scan QR code to connect</Text>
             <QRCodeScanner onScan={handleQRScan} />
             <View style={styles.skipButtonContainer}>
               <TouchableOpacity
                 style={styles.skipButton}
-                onPress={() => handleQRScan('apptuner://connect/testmetroreload')}>
-                <Text style={styles.skipButtonText}>Skip QR / Manual Connect</Text>
+                onPress={() => setShowManualEntry(true)}>
+                <Text style={styles.skipButtonText}>Enter Code Manually</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -290,6 +341,9 @@ export default function App() {
 
   return (
     <SafeAreaView style={bundleLoaded ? styles.fullScreenSafeArea : styles.safeArea}>
+      {/* Keep screen awake when connected to prevent iOS from suspending the app */}
+      {appState === 'connected' && <KeepAwake />}
+
       <StatusBar
         barStyle={bundleLoaded ? "light-content" : "dark-content"}
         backgroundColor="transparent"
@@ -351,12 +405,12 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: '600',
     color: '#1d1d1f',
-    marginBottom: 8,
+    marginBottom: 16,
   },
   subtitle: {
     fontSize: 16,
     color: '#86868b',
-    marginBottom: 32,
+    marginBottom: 48,
   },
   connectingText: {
     fontSize: 18,
@@ -425,9 +479,12 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   skipButtonContainer: {
-    marginTop: 24,
+    marginTop: 32,
     width: '100%',
     alignItems: 'center',
+    backgroundColor: '#ffffff',
+    paddingTop: 16,
+    paddingBottom: 16,
   },
   skipButton: {
     paddingVertical: 12,
