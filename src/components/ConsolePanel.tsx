@@ -9,12 +9,15 @@ export interface ConsoleLog {
 interface ConsolePanelProps {
   logs: ConsoleLog[];
   onClear: () => void;
+  maxLogs?: number;
+  onMaxLogsChange?: (maxLogs: number) => void;
 }
 
-export function ConsolePanel({ logs, onClear }: ConsolePanelProps) {
+export function ConsolePanel({ logs, onClear, maxLogs = 500, onMaxLogsChange }: ConsolePanelProps) {
   const [filter, setFilter] = useState<string>('all');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
 
   // Auto-scroll to bottom when new logs arrive
   useEffect(() => {
@@ -209,6 +212,97 @@ export function ConsolePanel({ logs, onClear }: ConsolePanelProps) {
           >
             Clear
           </button>
+
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowSettings(!showSettings)}
+              style={{
+                fontSize: 'var(--font-size-sm)',
+                color: 'var(--text-secondary)',
+                background: showSettings ? 'var(--bg-tertiary)' : 'transparent',
+                border: '1px solid var(--border)',
+                padding: '4px 12px',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                transition: 'var(--transition-fast)',
+              }}
+              onMouseOver={(e) => {
+                if (!showSettings) {
+                  e.currentTarget.style.background = 'var(--bg-tertiary)';
+                }
+              }}
+              onMouseOut={(e) => {
+                if (!showSettings) {
+                  e.currentTarget.style.background = 'transparent';
+                }
+              }}
+            >
+              ⚙️
+            </button>
+
+            {showSettings && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                marginTop: '4px',
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius-md)',
+                padding: 'var(--space-md)',
+                minWidth: '250px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                zIndex: 1000,
+              }}>
+                <div style={{ marginBottom: 'var(--space-sm)' }}>
+                  <label style={{
+                    fontSize: 'var(--font-size-sm)',
+                    fontWeight: '600',
+                    color: 'var(--text-primary)',
+                    display: 'block',
+                    marginBottom: 'var(--space-xs)',
+                  }}>
+                    Log Retention
+                  </label>
+                  <p style={{
+                    fontSize: 'var(--font-size-xs)',
+                    color: 'var(--text-secondary)',
+                    marginBottom: 'var(--space-sm)',
+                  }}>
+                    Maximum number of logs to keep
+                  </p>
+                  <select
+                    value={maxLogs}
+                    onChange={(e) => onMaxLogsChange?.(Number(e.target.value))}
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      fontSize: 'var(--font-size-sm)',
+                      background: 'var(--bg-secondary)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 'var(--radius-sm)',
+                      color: 'var(--text-primary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="100">100 logs (minimal)</option>
+                    <option value="500">500 logs (recommended)</option>
+                    <option value="1000">1000 logs (heavy)</option>
+                    <option value="999999">Unlimited</option>
+                  </select>
+                </div>
+                <div style={{
+                  fontSize: 'var(--font-size-xs)',
+                  color: 'var(--text-tertiary)',
+                  marginTop: 'var(--space-sm)',
+                  paddingTop: 'var(--space-sm)',
+                  borderTop: '1px solid var(--border)',
+                }}>
+                  Current: {logs.length} / {maxLogs === 999999 ? '∞' : maxLogs}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

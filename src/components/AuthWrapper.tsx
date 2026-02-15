@@ -27,6 +27,14 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
   const { user, loading, hasActiveSubscription } = useAuth();
   const [authView, setAuthView] = useState<AuthView>('login');
 
+  // DEV MODE BYPASS: Automatically grant access during development
+  // Remove this block before production launch!
+  const BYPASS_AUTH = import.meta.env.DEV; // true in development, false in production
+  if (BYPASS_AUTH) {
+    console.log('🚀 DEV MODE: Bypassing authentication');
+    return <>{children}</>;
+  }
+
   // Show loading state while checking authentication
   if (loading) {
     return (

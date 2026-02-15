@@ -21,6 +21,14 @@ function BrowserApp() {
   const [toast, setToast] = useState<{ message: string; type: ToastType } | null>(null);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
+  const [maxLogs, setMaxLogs] = useState<number>(() => {
+    const saved = localStorage.getItem('apptuner_max_logs');
+    return saved ? parseInt(saved) : 500;
+  });
+  const [showRelaySettings, setShowRelaySettings] = useState<boolean>(false);
+  const [customRelayUrl, setCustomRelayUrl] = useState<string>(() => {
+    return localStorage.getItem('apptuner_relay_url') || 'ws://192.168.178.48:8787';
+  });
 
   const connectionRef = useRef<ConnectionManager | null>(null);
   const projectManagerRef = useRef<ProjectManager | null>(null);
@@ -119,7 +127,14 @@ function BrowserApp() {
             args: data.payload.args || [],
             timestamp: data.payload.timestamp || Date.now(),
           };
-          setConsoleLogs((prev) => [...prev, consoleLog]);
+          setConsoleLogs((prev) => {
+            const newLogs = [...prev, consoleLog];
+            // Trim logs to maxLogs if exceeded (keep most recent)
+            if (newLogs.length > maxLogs) {
+              return newLogs.slice(newLogs.length - maxLogs);
+            }
+            return newLogs;
+          });
         }
 
         // Handle mobile device connection
@@ -152,10 +167,11 @@ function BrowserApp() {
         }
       });
 
-      // Connect to relay
-      await connection.connect('ws://192.168.178.48:8787');
+      // Connect to relay using custom URL or default
+      const relayUrl = localStorage.getItem('apptuner_relay_url') || 'ws://192.168.178.48:8787';
+      await connection.connect(relayUrl);
 
-      console.log('Connected to relay server');
+      console.log(`Connected to relay server: ${relayUrl}`);
 
     } catch (error) {
       console.error('Session initialization error:', error);
@@ -218,6 +234,19 @@ function BrowserApp() {
     setConsoleLogs([]);
   };
 
+  const handleMaxLogsChange = (newMaxLogs: number) => {
+    setMaxLogs(newMaxLogs);
+    localStorage.setItem('apptuner_max_logs', String(newMaxLogs));
+
+    // Trim existing logs if new limit is lower
+    setConsoleLogs((prev) => {
+      if (prev.length > newMaxLogs) {
+        return prev.slice(prev.length - newMaxLogs);
+      }
+      return prev;
+    });
+  };
+
   const copySessionId = () => {
     navigator.clipboard.writeText(sessionId);
     setCopySuccess(true);
@@ -275,22 +304,48 @@ function BrowserApp() {
             AppTuner
           </h1>
 
-          {/* Status */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            fontSize: '14px',
-            color: '#666'
-          }}>
+          {/* Change Relay Link (only show when no devices connected) */}
+          {devices.length === 0 && (
+            <button
+              onClick={() => setShowRelaySettings(true)}
+              style={{
+                fontSize: '13px',
+                color: '#666',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: '4px 8px',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.color = '#000';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.color = '#666';
+              }}
+            >
+              Change Relay
+            </button>
+          )}
+
+          {/* Status (show when devices connected or auto-reload active) */}
+          {(devices.length > 0 || autoReload) && (
             <div style={{
-              width: '6px',
-              height: '6px',
-              borderRadius: '50%',
-              background: getStatusColor()
-            }} />
-            {getStatusText()}
-          </div>
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '14px',
+              color: '#666'
+            }}>
+              <div style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: getStatusColor()
+              }} />
+              {getStatusText()}
+            </div>
+          )}
         </div>
       </div>
 
@@ -298,7 +353,7 @@ function BrowserApp() {
       <div style={{
         maxWidth: '800px',
         margin: '0 auto',
-        padding: '32px 24px',
+        padding: '42px 24px',
       }}>
         {/* STEP 1: Connect Device (only show when NOT connected) */}
         {devices.length === 0 && (
@@ -306,11 +361,12 @@ function BrowserApp() {
             background: 'white',
             border: '1px solid #eaeaea',
             borderRadius: '8px',
-            padding: '48px 32px',
+            padding: '58px 32px 48px 32px',
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            textAlign: 'center'
+            textAlign: 'center',
+            position: 'relative'
           }}>
             <h2 style={{
               fontSize: '24px',
@@ -323,12 +379,30 @@ function BrowserApp() {
             <p style={{
               fontSize: '16px',
               color: '#666',
-              margin: '0 0 48px 0',
+              margin: '0 0 8px 0',
               maxWidth: '500px',
               lineHeight: '1.5'
             }}>
               Open the AppTuner app on your phone and scan this QR code
             </p>
+
+            {/* Waiting for Device Status - centered under instruction */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              fontSize: '16px',
+              color: '#666',
+              marginBottom: '32px'
+            }}>
+              <div style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                background: getStatusColor()
+              }} />
+              {getStatusText()}
+            </div>
 
             {/* Bigger QR Code */}
             {qrCodeUrl && (
@@ -671,11 +745,181 @@ function BrowserApp() {
               overflow: 'hidden',
               height: '600px'
             }}>
-              <ConsolePanel logs={consoleLogs} onClear={clearLogs} />
+              <ConsolePanel
+                logs={consoleLogs}
+                onClear={clearLogs}
+                maxLogs={maxLogs}
+                onMaxLogsChange={handleMaxLogsChange}
+              />
             </div>
           </>
         )}
       </div>
+
+      {/* Relay Settings Modal */}
+      {showRelaySettings && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+          }}
+          onClick={() => setShowRelaySettings(false)}
+        >
+          <div
+            style={{
+              background: 'white',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{
+              margin: '0 0 16px 0',
+              fontSize: '20px',
+              fontWeight: '600',
+              color: '#000',
+            }}>
+              Custom Relay Server
+            </h3>
+
+            <p style={{
+              fontSize: '14px',
+              color: '#666',
+              lineHeight: '1.5',
+              marginBottom: '24px',
+            }}>
+              By default, AppTuner uses Cloudflare Workers as a relay server. If Cloudflare is blocked in your region, you can deploy our relay code to your own server.
+            </p>
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#000',
+                marginBottom: '8px',
+              }}>
+                Relay Server URL
+              </label>
+              <input
+                type="text"
+                value={customRelayUrl}
+                onChange={(e) => setCustomRelayUrl(e.target.value)}
+                placeholder="ws://192.168.178.48:8787"
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: '14px',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  fontFamily: 'Menlo, Monaco, monospace',
+                }}
+              />
+              <p style={{
+                fontSize: '12px',
+                color: '#999',
+                marginTop: '6px',
+              }}>
+                Enter the WebSocket URL of your custom relay server
+              </p>
+            </div>
+
+            <div style={{
+              padding: '16px',
+              background: '#f8f8f8',
+              borderRadius: '8px',
+              marginBottom: '24px',
+            }}>
+              <div style={{
+                fontSize: '13px',
+                fontWeight: '600',
+                color: '#000',
+                marginBottom: '8px',
+              }}>
+                Need to deploy your own relay?
+              </div>
+              <p style={{
+                fontSize: '12px',
+                color: '#666',
+                lineHeight: '1.5',
+                marginBottom: '12px',
+              }}>
+                Download our relay server code and deploy it to any cloud provider (AWS, Azure, Digital Ocean, etc.)
+              </p>
+              <button
+                onClick={() => {
+                  // Create a zip file download of the relay folder
+                  window.open('https://github.com/yourusername/apptuner/tree/main/relay', '_blank');
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#000',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                📥 Download Relay Code
+              </button>
+            </div>
+
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end',
+            }}>
+              <button
+                onClick={() => setShowRelaySettings(false)}
+                style={{
+                  padding: '10px 20px',
+                  background: 'transparent',
+                  color: '#666',
+                  border: '1px solid #ddd',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  localStorage.setItem('apptuner_relay_url', customRelayUrl);
+                  setShowRelaySettings(false);
+                  setToast({ message: 'Relay URL updated! Please refresh to reconnect.', type: 'success' });
+                }}
+                style={{
+                  padding: '10px 20px',
+                  background: '#000',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Notifications */}
       {toast && (
