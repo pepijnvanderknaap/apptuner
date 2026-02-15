@@ -219,9 +219,18 @@ export function Contact({ onBack }: { onBack: () => void }) {
           }}>
             <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Other Ways to Reach Us</h3>
             <div style={{ color: '#666', lineHeight: '2' }}>
-              <p><strong>Email:</strong> support@apptuner.dev</p>
-              <p><strong>GitHub:</strong> github.com/apptuner/apptuner</p>
-              <p><strong>Twitter:</strong> @apptuner</p>
+              <p>
+                <strong>General Inquiries:</strong>{' '}
+                <a href="mailto:info@apptuner.io" style={{ color: '#667eea', textDecoration: 'none' }}>
+                  info@apptuner.io
+                </a>
+              </p>
+              <p>
+                <strong>Technical Support:</strong>{' '}
+                <a href="mailto:support@apptuner.io" style={{ color: '#667eea', textDecoration: 'none' }}>
+                  support@apptuner.io
+                </a>
+              </p>
             </div>
           </div>
         </div>

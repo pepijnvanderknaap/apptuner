@@ -10,11 +10,33 @@ import { PrivacyPolicy } from './PrivacyPolicy';
 import { TermsOfService } from './TermsOfService';
 import { Documentation } from './Documentation';
 import { Contact } from './Contact';
+import { redirectToCheckout, STRIPE_PRICE_IDS, isStripeConfigured } from '../services/stripe';
 
 type PageView = 'landing' | 'privacy' | 'terms' | 'docs' | 'contact';
 
 export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
   const [currentPage, setCurrentPage] = useState<PageView>('landing');
+  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+
+  // Handle Stripe checkout
+  const handleCheckout = async (tier: 'monthly' | 'yearly' | 'lifetime') => {
+    if (!isStripeConfigured()) {
+      console.warn('Stripe not configured - entering app directly');
+      onEnterApp();
+      return;
+    }
+
+    setCheckoutLoading(tier);
+    const priceId = STRIPE_PRICE_IDS[tier];
+    const result = await redirectToCheckout(priceId);
+
+    if (result.error) {
+      console.error('Checkout error:', result.error);
+      alert(`Failed to start checkout: ${result.error}`);
+      setCheckoutLoading(null);
+    }
+    // If successful, user will be redirected to Stripe
+  };
 
   // Show different pages based on navigation
   if (currentPage === 'privacy') {
@@ -350,8 +372,12 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
                 <li>✓ Priority support</li>
                 <li>✓ Cancel anytime</li>
               </ul>
-              <button className="btn-outline" onClick={onEnterApp}>
-                Get Started
+              <button
+                className="btn-outline"
+                onClick={() => handleCheckout('monthly')}
+                disabled={checkoutLoading !== null}
+              >
+                {checkoutLoading === 'monthly' ? 'Loading...' : 'Get Started'}
               </button>
             </div>
 
@@ -375,8 +401,12 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
                 <li>✓ Priority support</li>
                 <li>✓ Lock in this price forever</li>
               </ul>
-              <button className="btn-primary" onClick={onEnterApp}>
-                Get Started
+              <button
+                className="btn-primary"
+                onClick={() => handleCheckout('yearly')}
+                disabled={checkoutLoading !== null}
+              >
+                {checkoutLoading === 'yearly' ? 'Loading...' : 'Get Started'}
               </button>
             </div>
 
@@ -399,8 +429,12 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
                 <li>✓ Best deal ever</li>
                 <li>✓ One-time payment</li>
               </ul>
-              <button className="btn-primary" onClick={onEnterApp}>
-                Get Lifetime Access
+              <button
+                className="btn-primary"
+                onClick={() => handleCheckout('lifetime')}
+                disabled={checkoutLoading !== null}
+              >
+                {checkoutLoading === 'lifetime' ? 'Loading...' : 'Get Lifetime Access'}
               </button>
             </div>
           </div>
@@ -493,6 +527,11 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
             <div className="footer-brand">
               <div className="logo-text">AppTuner</div>
               <p>The React Native DX you deserve</p>
+              <p style={{ marginTop: '12px', fontSize: '14px', color: '#888' }}>
+                <a href="mailto:info@apptuner.io" style={{ color: '#667eea', textDecoration: 'none' }}>
+                  info@apptuner.io
+                </a>
+              </p>
             </div>
             <div className="footer-links">
               <div className="footer-column">
@@ -510,6 +549,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
                 <h4>Support</h4>
                 <a onClick={() => setCurrentPage('docs')} style={{ cursor: 'pointer' }}>Documentation</a>
                 <a onClick={() => setCurrentPage('contact')} style={{ cursor: 'pointer' }}>Contact</a>
+                <a href="mailto:support@apptuner.io" style={{ textDecoration: 'none' }}>Email Support</a>
               </div>
             </div>
           </div>
