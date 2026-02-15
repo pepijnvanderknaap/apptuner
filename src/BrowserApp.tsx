@@ -35,6 +35,8 @@ function BrowserApp() {
   const isTogglingRef = useRef<boolean>(false);
   const unsubscribeStatusRef = useRef<(() => void) | null>(null);
   const unsubscribeMessageRef = useRef<(() => void) | null>(null);
+  const logBatchRef = useRef<ConsoleLog[]>([]);
+  const logBatchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize session once on mount
   useEffect(() => {
@@ -49,6 +51,12 @@ function BrowserApp() {
       if (unsubscribeMessageRef.current) {
         unsubscribeMessageRef.current();
         unsubscribeMessageRef.current = null;
+      }
+
+      // Clean up log batch timer
+      if (logBatchTimerRef.current) {
+        clearTimeout(logBatchTimerRef.current);
+        logBatchTimerRef.current = null;
       }
 
       // Don't disconnect on cleanup - let the connection persist
@@ -132,21 +140,38 @@ function BrowserApp() {
 
       // Subscribe to messages from mobile devices (store unsubscribe function)
       unsubscribeMessageRef.current = connection.onMessage((data) => {
-        // Handle console logs
+        // Handle console logs with batching to improve performance
         if (data.type === 'console_log' && data.payload) {
           const consoleLog: ConsoleLog = {
             level: data.payload.level || 'log',
             args: data.payload.args || [],
             timestamp: data.payload.timestamp || Date.now(),
           };
-          setConsoleLogs((prev) => {
-            const newLogs = [...prev, consoleLog];
-            // Trim logs to maxLogs if exceeded (keep most recent)
-            if (newLogs.length > maxLogs) {
-              return newLogs.slice(newLogs.length - maxLogs);
+
+          // Add to batch instead of immediate state update
+          logBatchRef.current.push(consoleLog);
+
+          // Clear existing timer
+          if (logBatchTimerRef.current) {
+            clearTimeout(logBatchTimerRef.current);
+          }
+
+          // Flush batch after 50ms of inactivity (debounce rapid logs)
+          logBatchTimerRef.current = setTimeout(() => {
+            const batch = [...logBatchRef.current];
+            logBatchRef.current = [];
+
+            if (batch.length > 0) {
+              setConsoleLogs((prev) => {
+                const newLogs = [...prev, ...batch];
+                // Trim logs to maxLogs if exceeded (keep most recent)
+                if (newLogs.length > maxLogs) {
+                  return newLogs.slice(newLogs.length - maxLogs);
+                }
+                return newLogs;
+              });
             }
-            return newLogs;
-          });
+          }, 50);
         }
 
         // Handle mobile device connection
