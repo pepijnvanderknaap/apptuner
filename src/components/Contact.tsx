@@ -8,16 +8,58 @@ export function Contact({ onBack }: { onBack: () => void }) {
     message: '',
   });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement actual form submission
-    console.log('Form submitted:', formData);
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setFormData({ name: '', email: '', subject: '', message: '' });
-    }, 3000);
+    setSubmitting(true);
+    setError(null);
+
+    // Get Formspree form ID from environment variable
+    const formspreeId = import.meta.env.VITE_FORMSPREE_FORM_ID;
+
+    if (!formspreeId) {
+      console.warn('Formspree not configured - form submission logged only');
+      console.log('Form submitted:', formData);
+      setSubmitting(false);
+      setSubmitted(true);
+      setTimeout(() => {
+        setSubmitted(false);
+        setFormData({ name: '', email: '', subject: '', message: '' });
+      }, 3000);
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://formspree.io/f/${formspreeId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          subject: formData.subject,
+          message: formData.message,
+        }),
+      });
+
+      if (response.ok) {
+        setSubmitted(true);
+        setFormData({ name: '', email: '', subject: '', message: '' });
+        setTimeout(() => {
+          setSubmitted(false);
+        }, 5000);
+      } else {
+        throw new Error('Failed to send message');
+      }
+    } catch (err) {
+      console.error('Form submission error:', err);
+      setError('Failed to send message. Please try emailing us directly at info@apptuner.io');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -70,6 +112,19 @@ export function Contact({ onBack }: { onBack: () => void }) {
           <p style={{ color: '#666', lineHeight: '1.7', marginBottom: '32px' }}>
             Have questions, feedback, or need support? We'd love to hear from you.
           </p>
+
+          {error && (
+            <div style={{
+              background: '#fef2f2',
+              border: '1px solid #fca5a5',
+              borderRadius: '8px',
+              padding: '20px',
+              color: '#991b1b',
+              marginBottom: '20px',
+            }}>
+              {error}
+            </div>
+          )}
 
           {submitted ? (
             <div style={{
@@ -195,19 +250,21 @@ export function Contact({ onBack }: { onBack: () => void }) {
 
               <button
                 type="submit"
+                disabled={submitting}
                 style={{
-                  background: '#667eea',
+                  background: submitting ? '#9ca3af' : '#667eea',
                   color: 'white',
                   border: 'none',
                   padding: '14px 32px',
                   borderRadius: '8px',
                   fontSize: '15px',
                   fontWeight: '600',
-                  cursor: 'pointer',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
                   width: '100%',
+                  opacity: submitting ? 0.7 : 1,
                 }}
               >
-                Send Message
+                {submitting ? 'Sending...' : 'Send Message'}
               </button>
             </form>
           )}
@@ -217,16 +274,21 @@ export function Contact({ onBack }: { onBack: () => void }) {
             paddingTop: '32px',
             borderTop: '1px solid #eaeaea',
           }}>
-            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px' }}>Other Ways to Reach Us</h3>
-            <div style={{ color: '#666', lineHeight: '2' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px', color: '#666' }}>
+              Prefer email?
+            </h3>
+            <p style={{ fontSize: '14px', color: '#888', marginBottom: '12px' }}>
+              You can also reach us directly at:
+            </p>
+            <div style={{ color: '#666', lineHeight: '2', fontSize: '14px' }}>
               <p>
-                <strong>General Inquiries:</strong>{' '}
+                <strong>General:</strong>{' '}
                 <a href="mailto:info@apptuner.io" style={{ color: '#667eea', textDecoration: 'none' }}>
                   info@apptuner.io
                 </a>
               </p>
               <p>
-                <strong>Technical Support:</strong>{' '}
+                <strong>Support:</strong>{' '}
                 <a href="mailto:support@apptuner.io" style={{ color: '#667eea', textDecoration: 'none' }}>
                   support@apptuner.io
                 </a>
