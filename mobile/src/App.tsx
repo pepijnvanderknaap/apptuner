@@ -15,6 +15,7 @@ import {
   SafeAreaView,
   LogBox,
   AppState,
+  Linking,
 } from 'react-native';
 import KeepAwake from 'react-native-keep-awake';
 import QRCodeScanner from './components/QRCodeScanner';
@@ -69,6 +70,27 @@ export default function App() {
   const unsubscribeStatusRef = useRef<(() => void) | null>(null);
   const unsubscribeBundleRef = useRef<(() => void) | null>(null);
   const shouldReconnectRef = useRef<boolean>(true);
+
+  // Handle deep links (when app is opened via apptuner:// URL)
+  useEffect(() => {
+    // Handle initial URL (when app is launched via deep link)
+    Linking.getInitialURL().then(url => {
+      if (url) {
+        console.log('App opened with deep link:', url);
+        handleQRScan(url);
+      }
+    });
+
+    // Handle URL when app is already running and receives a deep link
+    const linkingSubscription = Linking.addEventListener('url', ({url}) => {
+      console.log('Received deep link while running:', url);
+      handleQRScan(url);
+    });
+
+    return () => {
+      linkingSubscription.remove();
+    };
+  }, []);
 
   // Monitor app state changes for auto-reconnection
   useEffect(() => {

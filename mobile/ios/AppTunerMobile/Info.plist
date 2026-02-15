@@ -53,5 +53,16 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>apptuner</string>
+			</array>
+			<key>CFBundleURLName</key>
+			<string>com.apptuner.deeplink</string>
+		</dict>
+	</array>
 </dict>
 </plist>
