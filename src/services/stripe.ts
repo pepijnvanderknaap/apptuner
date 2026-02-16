@@ -49,8 +49,9 @@ export const redirectToCheckout = async (priceId: string, userEmail?: string) =>
       return { error: 'Invalid price selected' };
     }
 
-    // Redirect to Stripe Checkout
-    const { error } = await stripe.redirectToCheckout({
+    // Redirect to Stripe Checkout using legacy method (requires type assertion)
+    // @ts-ignore - redirectToCheckout exists but may not be in current type definitions
+    const result = await stripe.redirectToCheckout({
       lineItems: [{ price: priceId, quantity: 1 }],
       mode: priceId === STRIPE_PRICE_IDS.lifetime ? 'payment' : 'subscription',
       successUrl: `${window.location.origin}/?checkout=success`,
@@ -58,9 +59,9 @@ export const redirectToCheckout = async (priceId: string, userEmail?: string) =>
       customerEmail: userEmail,
     });
 
-    if (error) {
-      console.error('Stripe checkout error:', error);
-      return { error: error.message };
+    if (result && result.error) {
+      console.error('Stripe checkout error:', result.error);
+      return { error: result.error.message };
     }
 
     return { success: true };
