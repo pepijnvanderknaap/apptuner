@@ -5,14 +5,36 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-// Create Supabase client (will work with placeholders for local development)
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true,
-  },
-});
+// Helper to check if Supabase is configured
+export const isSupabaseConfigured = () => {
+  return !!(supabaseUrl && supabaseAnonKey && supabaseUrl !== '' && supabaseAnonKey !== '');
+};
+
+// Create Supabase client with placeholder if not configured
+// This prevents errors when env vars are missing in development
+const createSupabaseClient = () => {
+  if (isSupabaseConfigured()) {
+    return createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true,
+      },
+    });
+  } else {
+    // Return a dummy client with placeholder credentials to prevent errors
+    console.warn('⚠️  Supabase not configured - using placeholder client');
+    return createClient('https://placeholder.supabase.co', 'placeholder-anon-key', {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    });
+  }
+};
+
+export const supabase = createSupabaseClient();
 
 // Database types (will be generated from your Supabase schema)
 export interface User {
@@ -37,7 +59,3 @@ export interface Subscription {
   created_at: string;
 }
 
-// Helper to check if Supabase is configured
-export const isSupabaseConfigured = () => {
-  return !!(supabaseUrl && supabaseAnonKey);
-};

@@ -6,7 +6,50 @@ This document tracks potential features and enhancements for future versions of 
 
 ## High Priority (v2.0)
 
-### 1. Contact-Based Session Sharing
+### 1. Production OTA Updates (CodePush Alternative)
+**Status:** Idea Phase - KILLER FEATURE!
+**Complexity:** High
+**Estimated Effort:** 4-6 weeks
+
+**Description:**
+Eliminate Xcode/Android Studio for production app updates. Build your app ONCE, then push JavaScript updates directly to users' devices without App Store review.
+
+**User Flow:**
+1. Developer builds production app once with Xcode/Android Studio
+2. Submits to App Store / Play Store
+3. Users download the app
+4. Developer makes code changes
+5. Pushes update via AppTuner backend
+6. Users' apps auto-update next launch (no App Store needed!)
+
+**Technical Requirements:**
+- Backend infrastructure to host bundles (S3 or similar)
+- Version management system (track which users have which bundle version)
+- App authentication (verify app is authorized to receive updates)
+- Bundle signing/verification (security)
+- Incremental updates (diff-based updates for efficiency)
+- Rollback capability (revert bad updates)
+- Update policies (immediate, on launch, on idle)
+
+**Why This Is HUGE:**
+- Microsoft's CodePush charges $$ for this
+- Expo has it but only for Expo apps
+- AppTuner could offer it for ANY React Native app!
+- Bypass App Store review for JavaScript changes
+- Fix bugs instantly without 2-3 day review wait
+- A/B testing and gradual rollouts
+
+**Business Model:**
+- Free for development (current AppTuner)
+- Paid tier for production OTA updates
+- Usage-based pricing (per update or per active user)
+
+**Phase 1 (Now):** Development hot-reload ✅
+**Phase 2 (v2.0):** Production OTA updates 🚀
+
+---
+
+### 2. Contact-Based Session Sharing
 **Status:** Idea Phase
 **Complexity:** High
 **Estimated Effort:** 2-3 weeks

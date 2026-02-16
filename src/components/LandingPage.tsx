@@ -9,14 +9,16 @@ import './LandingPage.css';
 import { PrivacyPolicy } from './PrivacyPolicy';
 import { TermsOfService } from './TermsOfService';
 import { Documentation } from './Documentation';
-import { Contact } from './Contact';
+import { Affiliates } from './Affiliates';
 import { redirectToCheckout, STRIPE_PRICE_IDS, isStripeConfigured } from '../services/stripe';
 
-type PageView = 'landing' | 'privacy' | 'terms' | 'docs' | 'contact';
+type PageView = 'landing' | 'privacy' | 'terms' | 'docs' | 'affiliates';
 
 export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
   const [currentPage, setCurrentPage] = useState<PageView>('landing');
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [showSupportModal, setShowSupportModal] = useState(false);
 
   // Handle Stripe checkout
   const handleCheckout = async (tier: 'monthly' | 'yearly' | 'lifetime') => {
@@ -48,8 +50,8 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
   if (currentPage === 'docs') {
     return <Documentation onBack={() => setCurrentPage('landing')} />;
   }
-  if (currentPage === 'contact') {
-    return <Contact onBack={() => setCurrentPage('landing')} />;
+  if (currentPage === 'affiliates') {
+    return <Affiliates onBack={() => setCurrentPage('landing')} />;
   }
 
   return (
@@ -523,41 +525,280 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
       {/* Footer */}
       <footer className="footer">
         <div className="container">
-          <div className="footer-content">
-            <div className="footer-brand">
-              <div className="logo-text">AppTuner</div>
-              <p>The React Native DX you deserve</p>
-              <p style={{ marginTop: '12px', fontSize: '14px', color: '#888' }}>
-                <a href="mailto:info@apptuner.io" style={{ color: '#667eea', textDecoration: 'none' }}>
-                  info@apptuner.io
-                </a>
-              </p>
-            </div>
-            <div className="footer-links">
-              <div className="footer-column">
-                <h4>Product</h4>
-                <a href="#features">Features</a>
-                <a href="#pricing">Pricing</a>
-                <a href="#faq">FAQ</a>
-              </div>
-              <div className="footer-column">
-                <h4>Legal</h4>
-                <a onClick={() => setCurrentPage('privacy')} style={{ cursor: 'pointer' }}>Privacy Policy</a>
-                <a onClick={() => setCurrentPage('terms')} style={{ cursor: 'pointer' }}>Terms of Service</a>
-              </div>
-              <div className="footer-column">
-                <h4>Support</h4>
-                <a onClick={() => setCurrentPage('docs')} style={{ cursor: 'pointer' }}>Documentation</a>
-                <a onClick={() => setCurrentPage('contact')} style={{ cursor: 'pointer' }}>Contact</a>
-                <a href="mailto:support@apptuner.io" style={{ textDecoration: 'none' }}>Email Support</a>
-              </div>
-            </div>
+          <div className="footer-menu">
+            <a onClick={() => setCurrentPage('docs')} style={{ cursor: 'pointer' }}>Docs</a>
+            <span className="footer-separator">|</span>
+            <a onClick={() => setCurrentPage('terms')} style={{ cursor: 'pointer' }}>Terms</a>
+            <span className="footer-separator">|</span>
+            <a onClick={() => setCurrentPage('privacy')} style={{ cursor: 'pointer' }}>Privacy</a>
+            <span className="footer-separator">|</span>
+            <a href="#faq" onClick={(e) => { e.preventDefault(); document.querySelector('.faq-section')?.scrollIntoView({ behavior: 'smooth' }); }} style={{ cursor: 'pointer' }}>FAQ</a>
+            <span className="footer-separator">|</span>
+            <a onClick={() => setCurrentPage('affiliates')} style={{ cursor: 'pointer' }}>Affiliates</a>
+            <span className="footer-separator">|</span>
+            <a onClick={() => setShowSupportModal(true)} style={{ cursor: 'pointer' }}>Support</a>
+            <span className="footer-separator">|</span>
+            <a onClick={() => setShowContactModal(true)} style={{ cursor: 'pointer' }}>Contact</a>
           </div>
-          <div className="footer-bottom">
-            <p>&copy; 2024 AppTuner. Built by developers, for developers.</p>
+          <div className="footer-copyright">
+            &copy; 2025 AppTuner
           </div>
         </div>
       </footer>
+
+      {/* Contact/Support Modal */}
+      {showContactModal && <UnifiedContactModal initialType="contact" onClose={() => setShowContactModal(false)} />}
+      {showSupportModal && <UnifiedContactModal initialType="support" onClose={() => setShowSupportModal(false)} />}
+    </div>
+  );
+}
+
+// Unified Contact/Support Modal Component
+function UnifiedContactModal({ initialType, onClose }: { initialType: 'contact' | 'support'; onClose: () => void }) {
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    subject: '',
+    supportArea: '',
+    message: '',
+  });
+  const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    const accessKey = import.meta.env.VITE_WEB3FORMS_ACCESS_KEY;
+
+    if (!accessKey) {
+      console.warn('Web3Forms not configured - form submission logged only');
+      console.log(`${initialType} form submitted:`, formData);
+      setSubmitting(false);
+      setSubmitted(true);
+      setTimeout(() => {
+        setSubmitted(false);
+        setFormData({ name: '', email: '', subject: '', supportArea: '', message: '' });
+        onClose();
+      }, 2000);
+      return;
+    }
+
+    try {
+      // Build subject line based on form type
+      const subject = initialType === 'support'
+        ? `Support Request: ${formData.supportArea}`
+        : formData.subject;
+
+      // Build message with form type indicator
+      const message = initialType === 'support'
+        ? `[SUPPORT REQUEST]\n\nSupport Area: ${formData.supportArea}\n\n${formData.message}`
+        : `[CONTACT]\n\n${formData.message}`;
+
+      const response = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          access_key: accessKey,
+          name: formData.name,
+          email: formData.email,
+          subject: subject,
+          message: message,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setSubmitted(true);
+        setFormData({ name: '', email: '', subject: '', supportArea: '', message: '' });
+        setTimeout(() => {
+          setSubmitted(false);
+          onClose();
+        }, 2000);
+      } else {
+        throw new Error(data.message || 'Failed to send message');
+      }
+    } catch (err) {
+      console.error('Form submission error:', err);
+      setError('Failed to send message. Please try emailing us directly at info@apptuner.io');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const isSupport = initialType === 'support';
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <button className="modal-close" onClick={onClose}>×</button>
+
+        <h2 style={{ fontSize: '28px', fontWeight: '700', marginBottom: '12px' }}>
+          {isSupport ? 'Get Support' : 'Get in Touch'}
+        </h2>
+        <p style={{ color: '#666', fontSize: '16px', lineHeight: '1.7', marginBottom: '28px' }}>
+          {isSupport
+            ? "Having trouble? Let us know and we'll help you get back on track."
+            : "Have questions, feedback, or need to reach us? We'd love to hear from you."}
+        </p>
+
+        {error && (
+          <div className="alert alert-error" style={{ marginBottom: '20px' }}>
+            {error}
+          </div>
+        )}
+
+        {submitted ? (
+          <div className="alert alert-success">
+            {isSupport
+              ? "Support ticket received! We'll get back to you shortly."
+              : "Thank you for your message! We'll get back to you soon."}
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit}>
+            {isSupport ? (
+              <>
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="form-label">Support Area</label>
+                  <select
+                    required
+                    value={formData.supportArea}
+                    onChange={(e) => setFormData({ ...formData, supportArea: e.target.value })}
+                    className="form-input"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <option value="">Select a topic...</option>
+                    <option value="Connection">Connection</option>
+                    <option value="Hot Reload">Hot Reload</option>
+                    <option value="Installation Help">Installation Help</option>
+                    <option value="Billing Question">Billing Question</option>
+                    <option value="Feature Request">Feature Request</option>
+                    <option value="Bug Report">Bug Report</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="form-label">Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="form-input"
+                    placeholder="Your name"
+                  />
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="form-input"
+                    placeholder="your@email.com"
+                  />
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <label className="form-label">Description</label>
+                  <textarea
+                    required
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    rows={6}
+                    className="form-input"
+                    placeholder="Please describe in detail..."
+                    style={{ resize: 'vertical', minHeight: '140px' }}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="form-label">Name</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    className="form-input"
+                    placeholder="Your name"
+                  />
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    className="form-input"
+                    placeholder="your@email.com"
+                  />
+                </div>
+
+                <div style={{ marginBottom: '20px' }}>
+                  <label className="form-label">Subject</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.subject}
+                    onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                    className="form-input"
+                    placeholder="How can we help?"
+                  />
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <label className="form-label">Message</label>
+                  <textarea
+                    required
+                    value={formData.message}
+                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    rows={6}
+                    className="form-input"
+                    placeholder="Tell us more..."
+                    style={{ resize: 'vertical', minHeight: '140px' }}
+                  />
+                </div>
+              </>
+            )}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="btn-primary"
+              style={{ width: '100%', padding: '16px', fontSize: '16px', opacity: submitting ? 0.7 : 1 }}
+            >
+              {submitting ? 'Sending...' : (isSupport ? 'Submit Support Request' : 'Send Message')}
+            </button>
+          </form>
+        )}
+
+        <div style={{
+          marginTop: '28px',
+          paddingTop: '28px',
+          borderTop: '1px solid #eaeaea',
+          fontSize: '15px',
+          color: '#888'
+        }}>
+          <p>
+            Prefer email? Reach us at{' '}
+            <a href="mailto:info@apptuner.io" style={{ color: '#667eea', textDecoration: 'none' }}>
+              info@apptuner.io
+            </a>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
