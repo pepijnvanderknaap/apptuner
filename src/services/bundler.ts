@@ -61,6 +61,7 @@ export class Bundler {
       const entryPath = `${this.projectPath}/${entryPoint}`.replace(/\/+/g, '/');
 
       // esbuild configuration for React Native
+      // @ts-ignore - esbuild not available in browser, this code path not used
       const result = await esbuild.build({
         entryPoints: [entryPath],
         bundle: true,
@@ -117,7 +118,7 @@ export class Bundler {
 
       // Check for errors
       if (result.errors.length > 0) {
-        const errorMessages = result.errors.map(e => e.text).join('\n');
+        const errorMessages = result.errors.map((e: any) => e.text).join('\n');
         return {
           code: '',
           error: `Build errors:\n${errorMessages}`,

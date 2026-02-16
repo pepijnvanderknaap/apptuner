@@ -14,15 +14,29 @@ export interface ProjectConfig {
   useMetro?: boolean; // If true, use Metro bundler; if false, use simple file reading
 }
 
+export interface BundleMetrics {
+  sizeKB: number;
+  timeMs: number;
+  timestamp: number;
+}
+
 export class ProjectManager {
   private config: ProjectConfig;
   private watcher: FileWatcher | null = null;
   private connection: ConnectionManager | null = null;
   private metro: MetroClient | null = null;
   private isActive = false;
+  private onMetrics: ((metrics: BundleMetrics) => void) | null = null;
 
   constructor(config: ProjectConfig) {
     this.config = config;
+  }
+
+  /**
+   * Set callback for bundle metrics
+   */
+  setOnMetrics(callback: (metrics: BundleMetrics) => void): void {
+    this.onMetrics = callback;
   }
 
   /**
@@ -107,6 +121,7 @@ export class ProjectManager {
 
     try {
       console.log('📦 Bundling project...');
+      const startTime = Date.now();
 
       let bundleCode: string | null = null;
 
@@ -129,12 +144,24 @@ export class ProjectManager {
       }
 
       if (bundleCode) {
+        const endTime = Date.now();
+        const timeMs = endTime - startTime;
         const sizeKB = Math.round(bundleCode.length / 1024);
-        console.log(`📤 Sending bundle (${sizeKB} KB)...`);
+
+        console.log(`📤 Sending bundle (${sizeKB} KB in ${timeMs}ms)...`);
 
         this.connection.sendBundleUpdate(bundleCode);
 
         console.log('✅ Bundle sent successfully');
+
+        // Emit metrics
+        if (this.onMetrics) {
+          this.onMetrics({
+            sizeKB,
+            timeMs,
+            timestamp: endTime,
+          });
+        }
       }
     } catch (error) {
       console.error('❌ Bundle error:', error);

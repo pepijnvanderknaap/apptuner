@@ -76,14 +76,20 @@ export class RelaySession {
   private createdAt: number;
   private lastActivity: number;
 
+  // Rate limiting: track message counts per second
+  private messageCount: number = 0;
+  private messageCountResetTime: number = Date.now();
+  private readonly MAX_MESSAGES_PER_SECOND = 100;
+  private readonly MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB
+
   constructor(state: DurableObjectState, env: Env) {
     this.state = state;
     this.sessionId = state.id.toString();
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
 
-    // Set up alarm for session cleanup (30 minutes of inactivity)
-    this.state.storage.setAlarm(Date.now() + 30 * 60 * 1000);
+    // Set up alarm for session cleanup (5 minutes of inactivity)
+    this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -154,7 +160,7 @@ export class RelaySession {
 
     // Set up close handler
     ws.addEventListener('close', (event) => {
-      this.handleClose(clientType, event.code, event.reason);
+      this.handleClose(ws, clientType, event.code, event.reason);
     });
 
     // Set up error handler
@@ -178,6 +184,43 @@ export class RelaySession {
     this.lastActivity = Date.now();
 
     try {
+      // Validate message size
+      const messageSize = typeof data === 'string' ? data.length : data.byteLength;
+      if (messageSize > this.MAX_MESSAGE_SIZE) {
+        console.error(`Message too large: ${messageSize} bytes`);
+        const source = from === 'desktop' ? this.desktopWs : this.mobileWs;
+        if (source) {
+          this.sendTo(source, {
+            type: 'error',
+            error: `Message too large (${messageSize} bytes, max ${this.MAX_MESSAGE_SIZE})`,
+            timestamp: Date.now(),
+          });
+        }
+        return;
+      }
+
+      // Rate limiting: check messages per second
+      const now = Date.now();
+      if (now - this.messageCountResetTime > 1000) {
+        // Reset counter every second
+        this.messageCount = 0;
+        this.messageCountResetTime = now;
+      }
+      this.messageCount++;
+
+      if (this.messageCount > this.MAX_MESSAGES_PER_SECOND) {
+        console.warn(`Rate limit exceeded from ${from}`);
+        const source = from === 'desktop' ? this.desktopWs : this.mobileWs;
+        if (source) {
+          this.sendTo(source, {
+            type: 'error',
+            error: 'Rate limit exceeded (max 100 messages/sec)',
+            timestamp: Date.now(),
+          });
+        }
+        return;
+      }
+
       // Parse message
       const message = typeof data === 'string' ? JSON.parse(data) : null;
 
@@ -186,11 +229,8 @@ export class RelaySession {
         return;
       }
 
-      console.log(`Message from ${from}: ${message.type}`);
-
-      // Handle ping/pong for health monitoring
+      // Handle ping/pong for health monitoring (disabled on desktop, but handle if received)
       if (message.type === 'ping') {
-        // Respond with pong immediately
         const source = from === 'desktop' ? this.desktopWs : this.mobileWs;
         if (source && source.readyState === WebSocket.READY_STATE_OPEN) {
           this.sendTo(source, {
@@ -235,26 +275,32 @@ export class RelaySession {
   /**
    * Handle WebSocket close
    */
-  private handleClose(clientType: 'desktop' | 'mobile', code: number, reason: string) {
+  private handleClose(ws: WebSocket, clientType: 'desktop' | 'mobile', code: number, reason: string) {
     console.log(`${clientType} disconnected: ${code} ${reason}`);
 
     if (clientType === 'desktop') {
-      this.desktopWs = null;
-      // Notify mobile
-      if (this.mobileWs) {
-        this.sendToMobile({
-          type: 'desktop_disconnected',
-          timestamp: Date.now(),
-        });
+      // Only clear if this is the current desktop connection
+      if (this.desktopWs === ws) {
+        this.desktopWs = null;
+        // Notify mobile
+        if (this.mobileWs) {
+          this.sendToMobile({
+            type: 'desktop_disconnected',
+            timestamp: Date.now(),
+          });
+        }
       }
     } else {
-      this.mobileWs = null;
-      // Notify desktop
-      if (this.desktopWs) {
-        this.sendToDesktop({
-          type: 'mobile_disconnected',
-          timestamp: Date.now(),
-        });
+      // Only clear if this is the current mobile connection
+      if (this.mobileWs === ws) {
+        this.mobileWs = null;
+        // Notify desktop
+        if (this.desktopWs) {
+          this.sendToDesktop({
+            type: 'mobile_disconnected',
+            timestamp: Date.now(),
+          });
+        }
       }
     }
 
@@ -301,9 +347,9 @@ export class RelaySession {
    */
   async alarm() {
     const inactiveTime = Date.now() - this.lastActivity;
-    const thirtyMinutes = 30 * 60 * 1000;
+    const fiveMinutes = 5 * 60 * 1000;
 
-    if (inactiveTime > thirtyMinutes) {
+    if (inactiveTime > fiveMinutes) {
       console.log(`Session ${this.sessionId} inactive for ${inactiveTime}ms, cleaning up`);
 
       // Close any remaining connections
@@ -320,7 +366,7 @@ export class RelaySession {
       await this.state.storage.deleteAll();
     } else {
       // Still active, reset alarm
-      this.state.storage.setAlarm(Date.now() + 30 * 60 * 1000);
+      this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000);
     }
   }
 }
