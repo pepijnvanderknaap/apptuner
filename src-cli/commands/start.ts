@@ -1,10 +1,17 @@
-import { spawn } from 'child_process';
+import { spawn, ChildProcess } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
 import chalk from 'chalk';
 import ora from 'ora';
-import qrcode from 'qrcode-terminal';
 import { WebSocket } from 'ws';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+
+const execAsync = promisify(exec);
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 interface StartOptions {
   project: string;
@@ -58,26 +65,19 @@ export async function startCommand(options: StartOptions) {
   const sessionId = generateSessionId();
   spinner.succeed(`Session ID: ${chalk.cyan(sessionId)}`);
 
-  // Step 4: Display QR code
-  if (options.qr) {
-    const qrData = `apptuner://connect/${sessionId}`;
-    console.log(chalk.white('\n📱 Scan this QR code with AppTuner mobile app:\n'));
-    qrcode.generate(qrData, { small: true });
-    console.log(chalk.gray(`\nOr enter code manually: ${chalk.white(sessionId)}\n`));
-  }
+  // Step 4: Start services locally
+  console.log(chalk.white('\nStarting local services...\n'));
 
-  // Step 5: Start services
-  console.log(chalk.white('Starting services...\n'));
+  // Find the root directory (where metro-server.cjs lives)
+  const rootDir = path.join(__dirname, '../../..');
 
   // Start Metro server
   spinner.start('Starting Metro bundler...');
-  const metroProcess = spawn('node', [path.join(__dirname, '../../metro-server.cjs')], {
+  const metroProcess = spawn('node', [path.join(rootDir, 'metro-server.cjs')], {
     cwd: projectPath,
-    stdio: 'pipe',
-    detached: true,
+    stdio: 'inherit',
+    detached: false,
   });
-
-  metroProcess.unref();
 
   // Give Metro a moment to start
   await new Promise(resolve => setTimeout(resolve, 2000));
@@ -85,29 +85,33 @@ export async function startCommand(options: StartOptions) {
 
   // Start file watcher
   spinner.start('Starting file watcher...');
-  const watcherProcess = spawn('node', [path.join(__dirname, '../../watcher-server.cjs')], {
+  const watcherProcess = spawn('node', [path.join(rootDir, 'watcher-server.cjs')], {
     cwd: projectPath,
-    stdio: 'pipe',
-    detached: true,
+    stdio: 'inherit',
+    detached: false,
   });
-
-  watcherProcess.unref();
 
   await new Promise(resolve => setTimeout(resolve, 1000));
   spinner.succeed('File watcher started (port 3030)');
 
-  // Step 6: Connect to relay
+  // Step 5: Connect to relay as CLI client
   spinner.start('Connecting to relay server...');
 
   const relayUrl = process.env.APPTUNER_RELAY_URL || 'wss://relay.apptuner.io';
-  const ws = new WebSocket(`${relayUrl}/desktop/${sessionId}`);
+  const ws = new WebSocket(`${relayUrl}/cli/${sessionId}`);
 
   ws.on('open', () => {
     spinner.succeed('Connected to relay');
 
     console.log(chalk.green.bold('\n✅ AppTuner is running!\n'));
-    console.log(chalk.white('Waiting for mobile connection...'));
-    console.log(chalk.gray('\nPress Ctrl+C to stop\n'));
+    console.log(chalk.white(`Dashboard: ${chalk.cyan(`https://apptuner.io/dashboard?session=${sessionId}`)}`));
+    console.log(chalk.gray('\nOpening browser...\n'));
+
+    // Open browser to dashboard
+    const dashboardUrl = `https://apptuner.io/dashboard?session=${sessionId}`;
+    const openCommand = process.platform === 'darwin' ? 'open' :
+                       process.platform === 'win32' ? 'start' : 'xdg-open';
+    exec(`${openCommand} "${dashboardUrl}"`);
   });
 
   ws.on('message', (data) => {
@@ -120,6 +124,12 @@ export async function startCommand(options: StartOptions) {
 
       if (message.type === 'mobile_disconnected') {
         console.log(chalk.yellow(`\n📱 Mobile device disconnected`));
+      }
+
+      // Handle commands from dashboard
+      if (message.type === 'command' && message.command === 'bundle') {
+        console.log(chalk.cyan('\n📦 Dashboard requested bundle...'));
+        // Metro and watcher will handle this automatically
       }
     } catch (error) {
       console.error('Error parsing message:', error);
@@ -152,11 +162,11 @@ export async function startCommand(options: StartOptions) {
     ws.close();
 
     if (metroProcess.pid) {
-      process.kill(-metroProcess.pid, 'SIGTERM');
+      process.kill(metroProcess.pid, 'SIGTERM');
     }
 
     if (watcherProcess.pid) {
-      process.kill(-watcherProcess.pid, 'SIGTERM');
+      process.kill(watcherProcess.pid, 'SIGTERM');
     }
 
     await fs.unlink(pidFile).catch(() => {});
