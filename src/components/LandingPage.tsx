@@ -10,34 +10,18 @@ import { PrivacyPolicy } from './PrivacyPolicy';
 import { TermsOfService } from './TermsOfService';
 import { Documentation } from './Documentation';
 import { Affiliates } from './Affiliates';
-import { redirectToCheckout, STRIPE_PRICE_IDS, isStripeConfigured } from '../services/stripe';
 
 type PageView = 'landing' | 'privacy' | 'terms' | 'docs' | 'affiliates';
 
-export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
+export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'signup', intent?: 'trial' | 'paid', tier?: 'monthly' | 'yearly' | 'lifetime') => void }) {
   const [currentPage, setCurrentPage] = useState<PageView>('landing');
   const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
   const [showSupportModal, setShowSupportModal] = useState(false);
 
-  // Handle Stripe checkout
+  // Handle Stripe checkout - direct to signup then welcome page handles server-side checkout
   const handleCheckout = async (tier: 'monthly' | 'yearly' | 'lifetime') => {
-    if (!isStripeConfigured()) {
-      console.warn('Stripe not configured - entering app directly');
-      onEnterApp();
-      return;
-    }
-
-    setCheckoutLoading(tier);
-    const priceId = STRIPE_PRICE_IDS[tier];
-    const result = await redirectToCheckout(priceId);
-
-    if (result.error) {
-      console.error('Checkout error:', result.error);
-      alert(`Failed to start checkout: ${result.error}`);
-      setCheckoutLoading(null);
-    }
-    // If successful, user will be redirected to Stripe
+    onEnterApp('signup', 'paid', tier);
   };
 
   // Show different pages based on navigation
@@ -67,7 +51,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
             <a href="#features">Features</a>
             <a href="#pricing">Pricing</a>
             <a href="#faq">FAQ</a>
-            <button className="btn-secondary" onClick={onEnterApp}>
+            <button className="btn-secondary" onClick={() => onEnterApp('login')}>
               Launch App
             </button>
           </div>
@@ -90,7 +74,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
             connections, zero configuration, and blazing-fast iteration on real devices.
           </p>
           <div className="hero-cta">
-            <button className="btn-primary btn-large" onClick={onEnterApp}>
+            <button className="btn-primary btn-large" onClick={() => onEnterApp('signup')}>
               Start Free Trial
               <span className="btn-arrow">→</span>
             </button>
@@ -350,7 +334,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
               <div className="trial-badge">FREE TRIAL</div>
               <h3>Try AppTuner Free for 14 Days</h3>
               <p>Full access to all features. No credit card required. Cancel anytime.</p>
-              <button className="btn-primary" onClick={onEnterApp}>
+              <button className="btn-primary" onClick={() => onEnterApp('signup')}>
                 Start Free Trial
               </button>
             </div>
@@ -514,7 +498,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: () => void }) {
           <p className="cta-subtitle">
             Join developers who demand instant hot reload, rock-solid connections, and zero configuration
           </p>
-          <button className="btn-primary btn-large" onClick={onEnterApp}>
+          <button className="btn-primary btn-large" onClick={() => onEnterApp('signup')}>
             Start Your Free Trial
             <span className="btn-arrow">→</span>
           </button>

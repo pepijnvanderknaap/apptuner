@@ -4,11 +4,15 @@ import { Login } from './Login';
 import { Signup } from './Signup';
 import { ForgotPassword } from './ForgotPassword';
 import { Paywall } from './Paywall';
+import { Welcome } from './Welcome';
 
 type AuthView = 'login' | 'signup' | 'forgot-password';
 
 interface AuthWrapperProps {
   children: React.ReactNode;
+  initialView?: AuthView;
+  signupIntent?: 'trial' | 'paid';
+  signupTier?: 'monthly' | 'yearly' | 'lifetime';
 }
 
 /**
@@ -23,9 +27,20 @@ interface AuthWrapperProps {
  * 3. Authenticated but no subscription: Show Paywall
  * 4. Authenticated with active subscription: Show children (BrowserApp)
  */
-export function AuthWrapper({ children }: AuthWrapperProps) {
+function isOnboardingDone(userId: string): boolean {
+  try {
+    return localStorage.getItem(`apptuner_onboarding_done_${userId}`) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function AuthWrapper({ children, initialView = 'login', signupIntent = 'trial', signupTier }: AuthWrapperProps) {
   const { user, loading, hasActiveSubscription } = useAuth();
-  const [authView, setAuthView] = useState<AuthView>('login');
+  const [authView, setAuthView] = useState<AuthView>(initialView);
+  const [onboardingDone, setOnboardingDone] = useState(() =>
+    user ? isOnboardingDone(user.id) : false
+  );
 
   // DEV MODE BYPASS: Automatically grant access during development
   // Remove this block before production launch!
@@ -73,7 +88,7 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
   // Not authenticated - show auth screens
   if (!user) {
     if (authView === 'signup') {
-      return <Signup onSwitchToLogin={() => setAuthView('login')} />;
+      return <Signup onSwitchToLogin={() => setAuthView('login')} intent={signupIntent} />;
     }
 
     if (authView === 'forgot-password') {
@@ -91,6 +106,17 @@ export function AuthWrapper({ children }: AuthWrapperProps) {
   // Authenticated but no active subscription - show paywall
   if (!hasActiveSubscription) {
     return <Paywall />;
+  }
+
+  // Authenticated with active subscription - check onboarding
+  if (!onboardingDone && !isOnboardingDone(user.id)) {
+    return (
+      <Welcome
+        intent={signupIntent}
+        selectedTier={signupTier}
+        onComplete={() => setOnboardingDone(true)}
+      />
+    );
   }
 
   // Authenticated with active subscription - show the app!
