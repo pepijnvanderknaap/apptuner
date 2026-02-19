@@ -8,9 +8,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 // console.log('[App] logoImage type:', typeof logoImage);
 
 export default function App() {
-  const [count, setCount] = useState(333333); // SIXTH TEST - Triple consecutive!
-
-  console.log('🔥🔥🔥 APP.TSX LOADED - COUNT:', 333333, '🔥🔥🔥');
+  const [count, setCount] = useState(0);
 
   useEffect(() => {
     console.log('🚀 App mounted! Console logging is working!');
@@ -36,11 +34,11 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.emoji}>🔥</Text>
-      <Text style={styles.title}>METRO AUTO-RELOAD! 🚀</Text>
+      <Text style={styles.emoji}>✅</Text>
+      <Text style={styles.title}>HOT RELOAD TEST! 🔥</Text>
 
       <Text style={styles.subtitle}>
-        If you see 66666, NativeEventEmitter fix WORKS! ⚡️
+        Watch this update live on your phone! ✨
       </Text>
 
       <View style={styles.counterBox}>
