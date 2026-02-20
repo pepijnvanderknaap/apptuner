@@ -20,9 +20,6 @@ export default defineConfig({
     'process.env': {},
     'process.versions': {},
     'process.versions.node': JSON.stringify('18.0.0'),
-    // Explicitly inject Supabase environment variables from Coolify
-    'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(process.env.VITE_SUPABASE_URL || ''),
-    'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(process.env.VITE_SUPABASE_ANON_KEY || ''),
   },
   optimizeDeps: {
     exclude: ['esbuild', 'react-native'],

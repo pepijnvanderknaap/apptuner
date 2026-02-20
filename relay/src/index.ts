@@ -34,11 +34,11 @@ export default {
       return new Response('Expected WebSocket upgrade', { status: 426 });
     }
 
-    // Parse path: /desktop/{sessionId} or /mobile/{sessionId}
-    const pathMatch = url.pathname.match(/^\/(desktop|mobile)\/([a-zA-Z0-9]+)$/);
+    // Parse path: /cli/{sessionId}, /dashboard/{sessionId}, /desktop/{sessionId}, or /mobile/{sessionId}
+    const pathMatch = url.pathname.match(/^\/(cli|dashboard|desktop|mobile)\/([a-zA-Z0-9]+)$/);
 
     if (!pathMatch) {
-      return new Response('Invalid path. Use /desktop/{sessionId} or /mobile/{sessionId}', {
+      return new Response('Invalid path. Use /cli/{sessionId}, /dashboard/{sessionId}, /desktop/{sessionId}, or /mobile/{sessionId}', {
         status: 400,
       });
     }
@@ -66,10 +66,12 @@ export default {
 
 /**
  * Durable Object that manages a single session
- * Handles both desktop and mobile connections, routing messages between them
+ * Handles CLI, dashboard, desktop, and mobile connections, routing messages between them
  */
 export class RelaySession {
   private state: DurableObjectState;
+  private cliWs: WebSocket | null = null;
+  private dashboardWs: WebSocket | null = null;
   private desktopWs: WebSocket | null = null;
   private mobileWs: WebSocket | null = null;
   private sessionId: string;
@@ -88,15 +90,15 @@ export class RelaySession {
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
 
-    // Set up alarm for session cleanup (5 minutes of inactivity)
-    this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000);
+    // Note: Alarm disabled to stay within free tier CPU limits
+    // Cloudflare will automatically evict inactive Durable Objects
   }
 
   async fetch(request: Request): Promise<Response> {
     // Get client type from header
     const clientType = request.headers.get('X-Client-Type');
 
-    if (!clientType || !['desktop', 'mobile'].includes(clientType)) {
+    if (!clientType || !['cli', 'dashboard', 'desktop', 'mobile'].includes(clientType)) {
       return new Response('Invalid client type', { status: 400 });
     }
 
@@ -104,7 +106,7 @@ export class RelaySession {
     const [client, server] = Object.values(new WebSocketPair());
 
     // Handle the WebSocket connection
-    await this.handleWebSocket(server, clientType as 'desktop' | 'mobile');
+    await this.handleWebSocket(server, clientType as 'cli' | 'dashboard' | 'desktop' | 'mobile');
 
     // Accept the WebSocket connection
     return new Response(null, {
@@ -116,12 +118,42 @@ export class RelaySession {
   /**
    * Handle incoming WebSocket connection
    */
-  private async handleWebSocket(ws: WebSocket, clientType: 'desktop' | 'mobile') {
+  private async handleWebSocket(ws: WebSocket, clientType: 'cli' | 'dashboard' | 'desktop' | 'mobile') {
     // Accept the connection
     ws.accept();
 
     // Store the connection
-    if (clientType === 'desktop') {
+    if (clientType === 'cli') {
+      // Close existing CLI connection if any
+      if (this.cliWs) {
+        this.cliWs.close(1000, 'New CLI connection');
+      }
+      this.cliWs = ws;
+      console.log(`CLI connected to session ${this.sessionId}`);
+
+      // Notify CLI if mobile is already connected
+      if (this.mobileWs) {
+        this.sendToCli({
+          type: 'mobile_connected',
+          timestamp: Date.now(),
+        });
+      }
+    } else if (clientType === 'dashboard') {
+      // Close existing dashboard connection if any
+      if (this.dashboardWs) {
+        this.dashboardWs.close(1000, 'New dashboard connection');
+      }
+      this.dashboardWs = ws;
+      console.log(`Dashboard connected to session ${this.sessionId}`);
+
+      // Notify dashboard if mobile is already connected
+      if (this.mobileWs) {
+        this.sendToDashboard({
+          type: 'mobile_connected',
+          timestamp: Date.now(),
+        });
+      }
+    } else if (clientType === 'desktop') {
       // Close existing desktop connection if any
       if (this.desktopWs) {
         this.desktopWs.close(1000, 'New desktop connection');
@@ -129,14 +161,15 @@ export class RelaySession {
       this.desktopWs = ws;
       console.log(`Desktop connected to session ${this.sessionId}`);
 
-      // Notify mobile that desktop is connected
+      // Notify desktop if mobile is already connected
       if (this.mobileWs) {
-        this.sendToMobile({
-          type: 'desktop_connected',
+        this.sendToDesktop({
+          type: 'mobile_connected',
           timestamp: Date.now(),
         });
       }
     } else {
+      // Mobile connection
       // Close existing mobile connection if any
       if (this.mobileWs) {
         this.mobileWs.close(1000, 'New mobile connection');
@@ -144,13 +177,11 @@ export class RelaySession {
       this.mobileWs = ws;
       console.log(`Mobile connected to session ${this.sessionId}`);
 
-      // Notify desktop that mobile is connected
-      if (this.desktopWs) {
-        this.sendToDesktop({
-          type: 'mobile_connected',
-          timestamp: Date.now(),
-        });
-      }
+      // Notify all desktop-side clients (CLI, dashboard, desktop) that mobile is connected
+      this.notifyDesktopSide({
+        type: 'mobile_connected',
+        timestamp: Date.now(),
+      });
     }
 
     // Set up message handler
@@ -180,7 +211,7 @@ export class RelaySession {
   /**
    * Handle incoming message from client
    */
-  private handleMessage(data: string | ArrayBuffer, from: 'desktop' | 'mobile') {
+  private handleMessage(data: string | ArrayBuffer, from: 'cli' | 'dashboard' | 'desktop' | 'mobile') {
     this.lastActivity = Date.now();
 
     try {
@@ -188,7 +219,7 @@ export class RelaySession {
       const messageSize = typeof data === 'string' ? data.length : data.byteLength;
       if (messageSize > this.MAX_MESSAGE_SIZE) {
         console.error(`Message too large: ${messageSize} bytes`);
-        const source = from === 'desktop' ? this.desktopWs : this.mobileWs;
+        const source = this.getWebSocket(from);
         if (source) {
           this.sendTo(source, {
             type: 'error',
@@ -210,7 +241,7 @@ export class RelaySession {
 
       if (this.messageCount > this.MAX_MESSAGES_PER_SECOND) {
         console.warn(`Rate limit exceeded from ${from}`);
-        const source = from === 'desktop' ? this.desktopWs : this.mobileWs;
+        const source = this.getWebSocket(from);
         if (source) {
           this.sendTo(source, {
             type: 'error',
@@ -229,10 +260,10 @@ export class RelaySession {
         return;
       }
 
-      // Handle ping/pong for health monitoring (disabled on desktop, but handle if received)
+      // Handle ping/pong for health monitoring
       if (message.type === 'ping') {
-        const source = from === 'desktop' ? this.desktopWs : this.mobileWs;
-        if (source && source.readyState === WebSocket.READY_STATE_OPEN) {
+        const source = this.getWebSocket(from);
+        if (source && source.readyState === WebSocket.OPEN) {
           this.sendTo(source, {
             type: 'pong',
             timestamp: Date.now(),
@@ -241,30 +272,24 @@ export class RelaySession {
         return; // Don't route ping messages
       }
 
-      // Route message to the other client
-      if (from === 'desktop') {
-        // Desktop → Mobile
-        if (this.mobileWs && this.mobileWs.readyState === WebSocket.READY_STATE_OPEN) {
+      // Route message based on source
+      if (from === 'mobile') {
+        // Mobile → All desktop-side clients (CLI, dashboard, desktop)
+        this.notifyDesktopSide(message);
+      } else {
+        // Desktop-side (CLI, dashboard, desktop) → Mobile
+        if (this.mobileWs && this.mobileWs.readyState === WebSocket.OPEN) {
           this.sendToMobile(message);
         } else {
-          // Mobile not connected, send error back to desktop
-          this.sendToDesktop({
-            type: 'error',
-            error: 'Mobile device not connected',
-            timestamp: Date.now(),
-          });
-        }
-      } else {
-        // Mobile → Desktop
-        if (this.desktopWs && this.desktopWs.readyState === WebSocket.READY_STATE_OPEN) {
-          this.sendToDesktop(message);
-        } else {
-          // Desktop not connected, send error back to mobile
-          this.sendToMobile({
-            type: 'error',
-            error: 'Desktop not connected',
-            timestamp: Date.now(),
-          });
+          // Mobile not connected, send error back to source
+          const source = this.getWebSocket(from);
+          if (source) {
+            this.sendTo(source, {
+              type: 'error',
+              error: 'Mobile device not connected',
+              timestamp: Date.now(),
+            });
+          }
         }
       }
     } catch (error) {
@@ -275,39 +300,35 @@ export class RelaySession {
   /**
    * Handle WebSocket close
    */
-  private handleClose(ws: WebSocket, clientType: 'desktop' | 'mobile', code: number, reason: string) {
+  private handleClose(ws: WebSocket, clientType: 'cli' | 'dashboard' | 'desktop' | 'mobile', code: number, reason: string) {
     console.log(`${clientType} disconnected: ${code} ${reason}`);
 
-    if (clientType === 'desktop') {
-      // Only clear if this is the current desktop connection
+    if (clientType === 'cli') {
+      if (this.cliWs === ws) {
+        this.cliWs = null;
+      }
+    } else if (clientType === 'dashboard') {
+      if (this.dashboardWs === ws) {
+        this.dashboardWs = null;
+      }
+    } else if (clientType === 'desktop') {
       if (this.desktopWs === ws) {
         this.desktopWs = null;
-        // Notify mobile
-        if (this.mobileWs) {
-          this.sendToMobile({
-            type: 'desktop_disconnected',
-            timestamp: Date.now(),
-          });
-        }
       }
-    } else {
-      // Only clear if this is the current mobile connection
+    } else if (clientType === 'mobile') {
       if (this.mobileWs === ws) {
         this.mobileWs = null;
-        // Notify desktop
-        if (this.desktopWs) {
-          this.sendToDesktop({
-            type: 'mobile_disconnected',
-            timestamp: Date.now(),
-          });
-        }
+        // Notify all desktop-side clients that mobile disconnected
+        this.notifyDesktopSide({
+          type: 'mobile_disconnected',
+          timestamp: Date.now(),
+        });
       }
     }
 
-    // If both disconnected, schedule cleanup
-    if (!this.desktopWs && !this.mobileWs) {
-      console.log(`Both clients disconnected from session ${this.sessionId}, scheduling cleanup`);
-      this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000); // 5 minutes
+    // If all clients disconnected, Cloudflare will automatically evict the Durable Object
+    if (!this.cliWs && !this.dashboardWs && !this.desktopWs && !this.mobileWs) {
+      console.log(`All clients disconnected from session ${this.sessionId}`);
     }
   }
 
@@ -315,12 +336,42 @@ export class RelaySession {
    * Send message to specific WebSocket
    */
   private sendTo(ws: WebSocket, message: any) {
-    if (ws && ws.readyState === WebSocket.READY_STATE_OPEN) {
+    if (ws && ws.readyState === 1) { // 1 = OPEN state
       try {
         ws.send(JSON.stringify(message));
       } catch (error) {
         console.error('Error sending message:', error);
       }
+    }
+  }
+
+  /**
+   * Get WebSocket for a client type
+   */
+  private getWebSocket(clientType: 'cli' | 'dashboard' | 'desktop' | 'mobile'): WebSocket | null {
+    switch (clientType) {
+      case 'cli': return this.cliWs;
+      case 'dashboard': return this.dashboardWs;
+      case 'desktop': return this.desktopWs;
+      case 'mobile': return this.mobileWs;
+    }
+  }
+
+  /**
+   * Send message to CLI
+   */
+  private sendToCli(message: any) {
+    if (this.cliWs) {
+      this.sendTo(this.cliWs, message);
+    }
+  }
+
+  /**
+   * Send message to dashboard
+   */
+  private sendToDashboard(message: any) {
+    if (this.dashboardWs) {
+      this.sendTo(this.dashboardWs, message);
     }
   }
 
@@ -343,6 +394,15 @@ export class RelaySession {
   }
 
   /**
+   * Notify all desktop-side clients (CLI, dashboard, desktop)
+   */
+  private notifyDesktopSide(message: any) {
+    this.sendToCli(message);
+    this.sendToDashboard(message);
+    this.sendToDesktop(message);
+  }
+
+  /**
    * Handle alarm (cleanup after inactivity)
    */
   async alarm() {
@@ -353,6 +413,14 @@ export class RelaySession {
       console.log(`Session ${this.sessionId} inactive for ${inactiveTime}ms, cleaning up`);
 
       // Close any remaining connections
+      if (this.cliWs) {
+        this.cliWs.close(1000, 'Session timeout');
+        this.cliWs = null;
+      }
+      if (this.dashboardWs) {
+        this.dashboardWs.close(1000, 'Session timeout');
+        this.dashboardWs = null;
+      }
       if (this.desktopWs) {
         this.desktopWs.close(1000, 'Session timeout');
         this.desktopWs = null;
@@ -364,9 +432,6 @@ export class RelaySession {
 
       // Clear storage
       await this.state.storage.deleteAll();
-    } else {
-      // Still active, reset alarm
-      this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000);
     }
   }
 }

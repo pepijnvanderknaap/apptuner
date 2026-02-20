@@ -9,6 +9,10 @@ import { Toast, ToastType } from './components/Toast';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 function BrowserApp() {
+  // Detect if running on apptuner.io or pages.dev (cloud mode) vs localhost (dev mode)
+  const isCloudMode = window.location.hostname === 'apptuner.io' ||
+    window.location.hostname.endsWith('.pages.dev');
+
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [sessionId, setSessionId] = useState<string>('');
   const [devices, setDevices] = useState<Device[]>([]);
@@ -111,8 +115,9 @@ function BrowserApp() {
 
   const initializeSession = async () => {
     try {
-      // Generate random 6-character session ID
-      const sid = generateSessionId();
+      // Read session from URL parameter if present, otherwise generate a new one
+      const urlParams = new URLSearchParams(window.location.search);
+      const sid = urlParams.get('session') || generateSessionId();
       setSessionId(sid);
 
       // Disconnect any existing connection first
@@ -122,8 +127,9 @@ function BrowserApp() {
         connectionRef.current = null;
       }
 
-      // Initialize connection manager
-      const connection = new ConnectionManager(sid);
+      // Initialize connection manager with appropriate client type
+      const clientType = isCloudMode ? 'dashboard' : 'desktop';
+      const connection = new ConnectionManager(sid, clientType);
       connectionRef.current = connection;
 
       // Subscribe to connection status changes (store unsubscribe function)
@@ -204,11 +210,18 @@ function BrowserApp() {
         }
       });
 
-      // Connect to relay using custom URL or default
-      const relayUrl = localStorage.getItem('apptuner_relay_url') || 'ws://192.168.178.48:8787';
+      // Connect to relay using appropriate URL based on environment
+      let relayUrl: string;
+      if (isCloudMode) {
+        // Production: use VPS relay server
+        relayUrl = 'wss://relay.apptuner.io';
+      } else {
+        // Dev mode: use custom URL or default
+        relayUrl = localStorage.getItem('apptuner_relay_url') || 'ws://192.168.178.48:8787';
+      }
       await connection.connect(relayUrl);
 
-      console.log(`Connected to relay server: ${relayUrl}`);
+      console.log(`Connected to relay server: ${relayUrl} (mode: ${isCloudMode ? 'cloud' : 'dev'}, client: ${clientType})`);
 
     } catch (error) {
       console.error('Session initialization error:', error);
@@ -897,7 +910,7 @@ function BrowserApp() {
               <button
                 onClick={() => {
                   // Create a zip file download of the relay folder
-                  window.open('https://github.com/yourusername/apptuner/tree/main/relay', '_blank');
+                  window.open('https://github.com/pepijnvanderknaap/apptuner/tree/main/relay', '_blank');
                 }}
                 style={{
                   padding: '8px 16px',

@@ -18,8 +18,6 @@ export function Paywall() {
     setLoading(tier);
 
     try {
-      // In production, this will call your backend to create a Stripe Checkout session
-      // For now, it's a placeholder
       const response = await fetch('/api/create-checkout-session', {
         method: 'POST',
         headers: {
@@ -28,23 +26,21 @@ export function Paywall() {
         body: JSON.stringify({
           priceId,
           userId: user?.id,
+          tier,
         }),
       });
 
-      const { sessionId } = await response.json();
+      const data = await response.json();
+      if (!response.ok || data.error) {
+        throw new Error(data.error || 'Server error');
+      }
 
       // Redirect to Stripe Checkout
-      const stripe = await stripePromise;
-      if (stripe) {
-        // @ts-ignore - redirectToCheckout exists but may not be in latest types
-        const { error } = await stripe.redirectToCheckout({ sessionId });
-        if (error) {
-          console.error('Stripe error:', error);
-        }
-      }
-    } catch (error) {
+      if (!data.url) throw new Error('No checkout URL returned');
+      window.location.href = data.url;
+    } catch (error: any) {
       console.error('Checkout error:', error);
-      alert('Unable to start checkout. Please try again.');
+      alert(`Unable to start checkout: ${error.message || 'Please try again.'}`);
     } finally {
       setLoading(null);
     }

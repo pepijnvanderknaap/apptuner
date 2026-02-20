@@ -116,4 +116,11 @@ export class ConsoleInterceptor {
       });
     }
   }
+
+  /**
+   * Get original console methods (for logging that should bypass interception)
+   */
+  getOriginalConsole(): typeof this.originalConsole {
+    return this.originalConsole;
+  }
 }

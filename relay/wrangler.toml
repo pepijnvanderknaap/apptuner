@@ -13,4 +13,4 @@ bindings = [
 
 [[migrations]]
 tag = "v1"
-new_classes = ["RelaySession"]
+new_sqlite_classes = ["RelaySession"]
