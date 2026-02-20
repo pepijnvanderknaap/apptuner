@@ -25,9 +25,19 @@ export class RelayConnection {
   private latency = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
 
-  constructor(sessionId: string, relayUrl: string) {
+  // Original console (to bypass interceptor for relay errors)
+  private originalConsole?: {
+    error: typeof console.error;
+  };
+
+  constructor(
+    sessionId: string,
+    relayUrl: string,
+    originalConsole?: { error: typeof console.error }
+  ) {
     this.sessionId = sessionId;
     this.relayUrl = relayUrl;
+    this.originalConsole = originalConsole;
   }
 
   /**
@@ -204,8 +214,10 @@ export class RelayConnection {
         break;
 
       case 'error':
-        // Silently handle relay errors to prevent console log feedback loop
-        // console.error('[Relay] Error from relay:', message.error);
+        // Use original console to prevent console log feedback loop
+        if (this.originalConsole?.error) {
+          this.originalConsole.error('[Relay] Error from relay:', message.error);
+        }
         break;
 
       default:

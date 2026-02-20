@@ -8,6 +8,7 @@ type MessageHandler = (data: any) => void;
 export class ConnectionManager {
   private ws: WebSocket | null = null;
   private sessionId: string;
+  private clientType: 'desktop' | 'dashboard';
   private status: ConnectionStatus = 'disconnected';
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10; // Increased from 5
@@ -23,8 +24,9 @@ export class ConnectionManager {
   private savedRelayUrl: string = '';
   private shouldReconnect: boolean = true;
 
-  constructor(sessionId: string) {
+  constructor(sessionId: string, clientType: 'desktop' | 'dashboard' = 'desktop') {
     this.sessionId = sessionId;
+    this.clientType = clientType;
   }
 
   /**
@@ -43,7 +45,7 @@ export class ConnectionManager {
     this.updateStatus('connecting');
 
     try {
-      this.ws = new WebSocket(`${relayUrl}/desktop/${this.sessionId}`);
+      this.ws = new WebSocket(`${relayUrl}/${this.clientType}/${this.sessionId}`);
 
       this.ws.onopen = () => {
         console.log('Connected to relay');

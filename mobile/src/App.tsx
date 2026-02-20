@@ -187,16 +187,19 @@ export default function App() {
       // Use deployed Cloudflare relay (same for dev and prod builds)
       const relayUrl = 'wss://apptuner-relay.falling-bird-3f63.workers.dev';
 
-      const connection = new RelayConnection(sid, relayUrl);
+      // Initialize console interceptor first (before relay, so we can pass original console)
+      const interceptor = new ConsoleInterceptor();
+      consoleInterceptorRef.current = interceptor;
+
+      // Create relay connection with original console to prevent feedback loop
+      const connection = new RelayConnection(sid, relayUrl, interceptor.getOriginalConsole());
       connectionRef.current = connection;
 
       // Initialize bundle executor
       const executor = new BundleExecutor();
       executorRef.current = executor;
 
-      // Initialize console interceptor
-      const interceptor = new ConsoleInterceptor();
-      consoleInterceptorRef.current = interceptor;
+      // Start console interception
       interceptor.start((entry) => {
         // Send console logs to desktop via relay
         connection.sendLog(entry.level as any, entry.args);

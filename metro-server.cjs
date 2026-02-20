@@ -1,6 +1,7 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const WebSocket = require('ws');
 
 const PORT = 3031;
@@ -9,7 +10,48 @@ const wss = new WebSocket.Server({ port: PORT });
 console.log(`📦 Metro bundler server running on ws://localhost:${PORT}`);
 
 const clients = new Set();
-const bundlers = new Map(); // projectPath -> metro instance
+
+// Bundle cache: cacheKey -> { bundle, sourceHash }
+// sourceHash is a hash of all source file mtimes - if files haven't changed, we skip rebuild
+const bundleCache = new Map();
+
+/**
+ * Compute a hash of source file modification times in a project directory.
+ * If no source files have been modified since last build, the hash will be identical.
+ */
+function getSourceHash(projectPath) {
+  const sourceExts = ['.js', '.jsx', '.ts', '.tsx', '.json'];
+  const hash = crypto.createHash('md5');
+
+  function scanDir(dir) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name === 'node_modules' || entry.name === '.git' ||
+          entry.name === 'ios' || entry.name === 'android' ||
+          entry.name === 'dist' || entry.name === 'build') continue;
+
+      const fullPath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scanDir(fullPath);
+      } else if (sourceExts.includes(path.extname(entry.name))) {
+        try {
+          const stat = fs.statSync(fullPath);
+          hash.update(`${fullPath}:${stat.mtimeMs}`);
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  scanDir(path.resolve(projectPath));
+  return hash.digest('hex');
+}
 
 wss.on('connection', (ws) => {
   console.log('✅ Browser connected to Metro server');
@@ -23,8 +65,27 @@ wss.on('connection', (ws) => {
         const { projectPath, entryPoint = 'App.tsx' } = data;
         console.log(`📦 Bundle request for: ${projectPath}/${entryPoint}`);
 
+        const cacheKey = `${projectPath}::${entryPoint}`;
+        const currentHash = getSourceHash(projectPath);
+        const cached = bundleCache.get(cacheKey);
+
+        if (cached && cached.sourceHash === currentHash) {
+          console.log(`⚡ Cache hit - no source changes detected, skipping rebuild`);
+          ws.send(JSON.stringify({
+            type: 'bundle_ready',
+            code: cached.bundle,
+            projectPath,
+            fromCache: true,
+          }));
+          console.log(`✅ Cached bundle served (${Math.round(cached.bundle.length / 1024)} KB)`);
+          return;
+        }
+
         try {
           const bundle = await bundleProject(projectPath, entryPoint);
+
+          // Cache the result with the source hash
+          bundleCache.set(cacheKey, { bundle, sourceHash: currentHash });
 
           ws.send(JSON.stringify({
             type: 'bundle_ready',
@@ -63,14 +124,18 @@ wss.on('connection', (ws) => {
 
 async function bundleProject(projectPath, entryPoint) {
   const absoluteProjectPath = path.resolve(projectPath);
-  const bundleScript = path.join(absoluteProjectPath, 'metro-bundle.js');
+  // metro-bundle.cjs lives alongside metro-server.cjs in the AppTuner installation.
+  // This works both in local dev (project root) and when installed globally via npm.
+  const bundleScript = path.join(__dirname, 'metro-bundle.cjs');
 
   console.log(`📁 Project path: ${absoluteProjectPath}`);
   console.log(`📄 Entry point: ${entryPoint}`);
-  console.log(`🚀 Spawning Metro bundler from project directory...`);
+  console.log(`🚀 Spawning Metro bundler...`);
 
   return new Promise((resolve, reject) => {
-    const proc = spawn('node', [bundleScript], {
+    // Pass projectPath and entryPoint as arguments so metro-bundle.js can find
+    // the project's metro.config.js and entry file regardless of where it's installed.
+    const proc = spawn('node', [bundleScript, absoluteProjectPath, entryPoint], {
       cwd: absoluteProjectPath,
       env: process.env,
     });

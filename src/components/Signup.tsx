@@ -3,9 +3,10 @@ import { useAuth } from '../hooks/useAuth';
 
 interface SignupProps {
   onSwitchToLogin: () => void;
+  intent?: 'trial' | 'paid';
 }
 
-export function Signup({ onSwitchToLogin }: SignupProps) {
+export function Signup({ onSwitchToLogin, intent = 'trial' }: SignupProps) {
   const { signUp } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -145,10 +146,10 @@ export function Signup({ onSwitchToLogin }: SignupProps) {
               marginBottom: '8px',
             }}
           >
-            Start Your Free Trial
+            {intent === 'paid' ? 'Create Your Account' : 'Start Your Free Trial'}
           </h1>
           <p style={{ color: '#666', fontSize: '15px' }}>
-            14 days free. No credit card required.
+            {intent === 'paid' ? 'Create an account to complete your purchase.' : '14 days free. No credit card required.'}
           </p>
         </div>
 
@@ -275,7 +276,7 @@ export function Signup({ onSwitchToLogin }: SignupProps) {
               marginBottom: '20px',
             }}
           >
-            {loading ? 'Creating account...' : 'Start Free Trial'}
+            {loading ? 'Creating account...' : intent === 'paid' ? 'Create Account' : 'Start Free Trial'}
           </button>
 
           <p

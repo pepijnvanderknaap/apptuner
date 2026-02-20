@@ -1,157 +1,101 @@
-# Apptuner
+# AppTuner
 
-A simpler alternative to Expo for React Native testing. Write code anywhere, point Apptuner at your folder, and instantly preview on your phone.
+**Instant hot reload for React Native** - See your changes in real-time on physical devices.
 
-## What is Apptuner?
+[![npm version](https://img.shields.io/npm/v/apptuner.svg)](https://www.npmjs.com/package/apptuner)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Apptuner is a React Native app testing tool focused on speed and simplicity. It's NOT a code editor - just a testing tool that lets you preview your React Native apps on your phone in under a minute.
+## What is AppTuner?
 
-### Key Features
+AppTuner brings **instant hot reload** to React Native development. Edit your code, save the file, and see changes on your physical device in seconds - no manual refresh needed.
 
-- **No code editor** - Use Claude, Cursor, VS Code, or any editor you prefer
-- **Instant preview** - Point at your folder and see it on your phone
-- **Cloud relay** - Stable connection via Cloudflare Workers (fixes Expo's WiFi issues)
-- **Apple Inc-style design** - Minimal, clean, lots of whitespace
-- **Simple by default** - Advanced features hidden for power users
+### Why AppTuner?
 
-## Tech Stack
+- ⚡ **Instant Updates** - Changes appear on your device automatically
+- 📱 **Real Devices** - Test on actual iPhones and Android phones, not simulators
+- 🌍 **Works Anywhere** - Cloud relay means it works on any WiFi network
+- 🎯 **Zero Config** - Works with existing React Native projects
+- 🚀 **Metro Integration** - Uses the official React Native bundler
 
-- **Desktop app**: Tauri + React + Vite
-- **Cloud relay**: Cloudflare Workers
-- **Mobile app**: React Native (coming soon)
-- **Bundler**: esbuild (integration in progress)
-
-## Project Structure
-
-```
-apptuner/
-├── src/                    # React frontend
-│   ├── App.tsx            # Main application component
-│   ├── main.tsx           # React entry point
-│   ├── styles.css         # Apple-style design system
-│   └── services/
-│       ├── connection.ts  # WebSocket connection manager
-│       └── bundler.ts     # Code bundling service
-├── src-tauri/             # Tauri backend
-│   └── src/
-│       ├── lib.rs         # Rust backend with folder validation
-│       └── main.rs        # Entry point
-├── package.json
-└── vite.config.ts
-```
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js 18+
-- Rust (for Tauri)
-- npm or yarn
-
-### Installation
+## Installation
 
 ```bash
-# Install dependencies
-npm install
-
-# Run in development mode
-npm run tauri dev
-
-# Build for production
-npm run tauri build
+npm install -g apptuner
 ```
 
-### Development
+## Quick Start
+
+1. **Install the mobile app** (coming soon to App Store & Play Store)
+
+2. **Navigate to your React Native project:**
+   ```bash
+   cd your-react-native-project
+   ```
+
+3. **Start AppTuner:**
+   ```bash
+   apptuner start
+   ```
+
+4. **Scan the QR code** with the AppTuner mobile app
+
+5. **Start coding!** Every save automatically updates your device ✨
+
+## Commands
+
+### `apptuner start`
+
+Starts the AppTuner development server with hot reload enabled.
 
 ```bash
-# Start the Vite dev server
-npm run dev
-
-# Start Tauri in development mode (opens the app)
-npm run tauri dev
-
-# Build the frontend
-npm run build
-
-# Type check
-npm run type-check
+apptuner start
 ```
+
+The CLI will:
+- Start Metro bundler
+- Start file watcher
+- Connect to cloud relay
+- Display a QR code
+- Automatically bundle and send changes to your device
+
+### `apptuner status`
+
+Check connection status.
+
+### `apptuner stop`
+
+Stop all AppTuner services.
 
 ## How It Works
 
-1. **Select Project**: Click to select your React Native project folder
-2. **Validation**: App validates the project has required files (package.json, App.js/tsx)
-3. **Generate QR Code**: Creates a unique session ID and displays a QR code
-4. **Connect**: Mobile app scans QR code and connects via Cloudflare Workers relay
-5. **Live Updates**: File changes are bundled and sent to your phone instantly
+1. **File Watcher** detects when you save a file
+2. **Metro Bundler** compiles your React Native code
+3. **Cloud Relay** sends the bundle to your phone
+4. **Mobile App** hot reloads with your changes
 
-## Current Status
+All automatic. No button presses. No manual refreshes.
 
-### Completed ✅
+## Requirements
 
-- **Phase 1**: Desktop app UI with Apple-style design
-- **Phase 1**: Folder selection and project validation
-- **Phase 1**: QR code generation for mobile connection
-- **Phase 1**: WebSocket connection manager
-- **Phase 1**: Tauri backend commands
-- **Phase 2**: ⭐ esbuild integration for React Native bundling
-- **Phase 2**: ⭐ JSX/TypeScript transformation
-- **Phase 2**: ⭐ Entry point auto-detection
-- **Phase 2**: ⭐ React Native polyfills and runtime
+- **Node.js** 18 or higher
+- **React Native** project (0.70+)
+- **AppTuner mobile app** (iOS/Android)
 
-### In Progress 🚧
+## Pricing
 
-- File watching system (Rust notify crate) - **Next up!**
-- Cloudflare Workers relay server
-- Mobile app (React Native)
+- **7-day free trial** - Full features, no credit card
+- **$29/month** - Cancel anytime
+- **$99/year** - Save $249/year
+- **$199 lifetime** - Pay once, use forever
 
-### Coming Soon 📋
+[Start your free trial →](https://apptuner.io)
 
-- Hot reload support
-- Source map generation
-- Error overlay
-- Performance monitoring
-- Advanced settings panel
+## Support
 
-## Architecture
-
-```
-┌─────────────────┐         ┌──────────────────┐         ┌─────────────────┐
-│  Desktop App    │         │ Cloudflare Edge  │         │   Mobile App    │
-│  (Tauri+React)  │◄───────►│   (Workers)      │◄───────►│ (React Native)  │
-│                 │  WSS    │                  │  WSS    │                 │
-│  - Folder Pick  │         │  - Session Mgmt  │         │  - QR Scanner   │
-│  - File Watch   │         │  - Message Relay │         │  - Code Exec    │
-│  - Bundler      │         │  - Connection    │         │  - Hot Reload   │
-└─────────────────┘         └──────────────────┘         └─────────────────┘
-```
-
-## Design Philosophy
-
-- **Minimal by default**: One-click folder selection, automatic QR code generation
-- **Clean UI**: Apple Inc-inspired design with lots of whitespace
-- **Fast**: Under a minute from start to testing on phone
-- **Reliable**: Cloud relay fixes common WiFi/network issues
-- **Focused**: NOT trying to be an IDE - just a testing tool
-
-## Development Roadmap
-
-1. **Phase 1**: Desktop app foundation ✅ **COMPLETE**
-2. **Phase 2**: esbuild bundler integration ✅ **COMPLETE**
-3. **Phase 3**: File watching system 🚧 **NEXT**
-4. **Phase 4**: Cloudflare Workers relay
-5. **Phase 5**: React Native mobile app
-6. **Phase 6**: Hot reload and advanced features
-7. **Phase 7**: Polish and optimization
-
-## Contributing
-
-This is currently in early development. Contributions welcome once we reach Phase 4.
+- **Website:** [apptuner.io](https://apptuner.io)
+- **Issues:** [github.com/pepijnvanderknaap/apptuner/issues](https://github.com/pepijnvanderknaap/apptuner/issues)
+- **Email:** support@apptuner.io
 
 ## License
 
-MIT
-
----
-
-**Made with care** • v0.1.0
+MIT © Pepijn van der Knaap
