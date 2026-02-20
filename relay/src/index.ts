@@ -90,8 +90,8 @@ export class RelaySession {
     this.createdAt = Date.now();
     this.lastActivity = Date.now();
 
-    // Set up alarm for session cleanup (5 minutes of inactivity)
-    this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000);
+    // Note: Alarm disabled to stay within free tier CPU limits
+    // Cloudflare will automatically evict inactive Durable Objects
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -326,10 +326,9 @@ export class RelaySession {
       }
     }
 
-    // If all clients disconnected, schedule cleanup
+    // If all clients disconnected, Cloudflare will automatically evict the Durable Object
     if (!this.cliWs && !this.dashboardWs && !this.desktopWs && !this.mobileWs) {
-      console.log(`All clients disconnected from session ${this.sessionId}, scheduling cleanup`);
-      this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000); // 5 minutes
+      console.log(`All clients disconnected from session ${this.sessionId}`);
     }
   }
 
@@ -337,7 +336,7 @@ export class RelaySession {
    * Send message to specific WebSocket
    */
   private sendTo(ws: WebSocket, message: any) {
-    if (ws && ws.readyState === WebSocket.READY_STATE_OPEN) {
+    if (ws && ws.readyState === 1) { // 1 = OPEN state
       try {
         ws.send(JSON.stringify(message));
       } catch (error) {
@@ -433,9 +432,6 @@ export class RelaySession {
 
       // Clear storage
       await this.state.storage.deleteAll();
-    } else {
-      // Still active, reset alarm
-      this.state.storage.setAlarm(Date.now() + 5 * 60 * 1000);
     }
   }
 }

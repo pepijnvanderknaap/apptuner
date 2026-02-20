@@ -213,8 +213,8 @@ function BrowserApp() {
       // Connect to relay using appropriate URL based on environment
       let relayUrl: string;
       if (isCloudMode) {
-        // Production: use deployed Cloudflare Workers relay
-        relayUrl = 'wss://apptuner-relay.falling-bird-3f63.workers.dev';
+        // Production: use VPS relay server
+        relayUrl = 'wss://relay.apptuner.io';
       } else {
         // Dev mode: use custom URL or default
         relayUrl = localStorage.getItem('apptuner_relay_url') || 'ws://192.168.178.48:8787';
