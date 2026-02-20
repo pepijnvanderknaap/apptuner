@@ -10,7 +10,7 @@ COPY relay-server.js package*.json ./
 RUN npm ci --omit=dev
 
 # Expose the relay server port
-EXPOSE 8787
+EXPOSE 3000
 
 # Start the relay server
 CMD ["node", "relay-server.js"]

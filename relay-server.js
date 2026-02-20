@@ -9,7 +9,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import crypto from 'crypto';
 
-const PORT = process.env.PORT || 8787;
+const PORT = process.env.PORT || 3000;
 const MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB
 
 // Session storage (replaces Durable Objects)
