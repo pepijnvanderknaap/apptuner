@@ -76,6 +76,18 @@ class RelaySession {
   handleMessage(fromType, message) {
     this.lastActivity = Date.now();
 
+    // Handle ping/pong for health monitoring
+    if (message.type === 'ping') {
+      const sourceWs = this.getWebSocket(fromType);
+      if (sourceWs) {
+        this.sendTo(sourceWs, {
+          type: 'pong',
+          timestamp: Date.now(),
+        });
+      }
+      return; // Don't route ping messages
+    }
+
     // Route messages based on client type and message type
     switch (fromType) {
       case 'cli':
@@ -147,6 +159,16 @@ class RelaySession {
 
   notifyMobileSide(message) {
     if (this.mobileWs) this.sendTo(this.mobileWs, message);
+  }
+
+  getWebSocket(clientType) {
+    switch (clientType) {
+      case 'cli': return this.cliWs;
+      case 'dashboard': return this.dashboardWs;
+      case 'desktop': return this.desktopWs;
+      case 'mobile': return this.mobileWs;
+      default: return null;
+    }
   }
 }
 

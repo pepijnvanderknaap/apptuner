@@ -184,8 +184,8 @@ export default function App() {
       // Enable auto-reconnection for this session
       shouldReconnectRef.current = true;
 
-      // Use deployed Cloudflare relay (same for dev and prod builds)
-      const relayUrl = 'wss://apptuner-relay.falling-bird-3f63.workers.dev';
+      // Use VPS relay server
+      const relayUrl = 'wss://relay.apptuner.io';
 
       // Initialize console interceptor first (before relay, so we can pass original console)
       const interceptor = new ConsoleInterceptor();
