@@ -88,31 +88,13 @@ class RelaySession {
       return; // Don't route ping messages
     }
 
-    // Route messages based on client type and message type
-    switch (fromType) {
-      case 'cli':
-        // CLI messages go to dashboard and desktop
-        if (this.dashboardWs) this.sendTo(this.dashboardWs, message);
-        if (this.desktopWs) this.sendTo(this.desktopWs, message);
-        break;
-
-      case 'dashboard':
-        // Dashboard messages go to CLI
-        if (this.cliWs) this.sendTo(this.cliWs, message);
-        break;
-
-      case 'desktop':
-        // Desktop messages go to CLI and mobile
-        if (message.type === 'bundle_request' || message.type === 'file_change') {
-          if (this.cliWs) this.sendTo(this.cliWs, message);
-        }
-        if (this.mobileWs) this.sendTo(this.mobileWs, message);
-        break;
-
-      case 'mobile':
-        // Mobile messages go to desktop
-        if (this.desktopWs) this.sendTo(this.desktopWs, message);
-        break;
+    // Route message based on source (matching Cloudflare relay logic)
+    if (fromType === 'mobile') {
+      // Mobile → All desktop-side clients (CLI, dashboard, desktop)
+      this.notifyDesktopSide(message);
+    } else {
+      // Desktop-side (CLI, dashboard, desktop) → Mobile
+      this.notifyMobileSide(message);
     }
   }
 
