@@ -135,6 +135,7 @@ class RelaySession {
   }
 
   notifyDesktopSide(message) {
+    if (this.cliWs) this.sendTo(this.cliWs, message);
     if (this.dashboardWs) this.sendTo(this.dashboardWs, message);
     if (this.desktopWs) this.sendTo(this.desktopWs, message);
   }
