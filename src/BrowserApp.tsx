@@ -69,6 +69,14 @@ function BrowserApp() {
     };
   }, []);
 
+  // Auto-start auto-reload when device connects
+  useEffect(() => {
+    if (devices.length > 0 && !autoReload && !isTogglingRef.current && connectionRef.current) {
+      console.log('🚀 Device connected, auto-starting reload...');
+      toggleAutoReload();
+    }
+  }, [devices.length]);
+
   // Set up keyboard shortcuts (re-run when autoReload changes)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -538,145 +546,7 @@ function BrowserApp() {
           </div>
         )}
 
-        {/* STEP 2: Start Auto-Reload (show when connected but NOT started) */}
-        {devices.length > 0 && !autoReload && (
-          <div style={{
-            background: 'white',
-            border: '1px solid #eaeaea',
-            borderRadius: '8px',
-            padding: '48px 32px',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            textAlign: 'center'
-          }}>
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '50%',
-              background: '#34C759',
-              color: 'white',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '28px',
-              marginBottom: '24px'
-            }}>
-              ✓
-            </div>
-
-            <h2 style={{
-              fontSize: '24px',
-              fontWeight: '600',
-              color: '#000',
-              margin: '0 0 12px 0'
-            }}>
-              Device Connected!
-            </h2>
-            <p style={{
-              fontSize: '16px',
-              color: '#666',
-              margin: '0 0 48px 0',
-              maxWidth: '500px',
-              lineHeight: '1.5'
-            }}>
-              Your mobile device is ready. Start auto-reload to see your changes instantly.
-            </p>
-
-            {/* Big Start Button */}
-            <button
-              onClick={toggleAutoReload}
-              style={{
-                padding: '20px 60px',
-                background: '#000',
-                color: 'white',
-                border: 'none',
-                borderRadius: '12px',
-                fontSize: '20px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                marginBottom: '40px'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-              }}
-            >
-              Start Auto-Reload
-            </button>
-
-            {/* Project Path */}
-            <div style={{
-              width: '100%',
-              maxWidth: '500px'
-            }}>
-              <label style={{
-                display: 'block',
-                fontSize: '14px',
-                color: '#666',
-                fontWeight: '500',
-                marginBottom: '8px',
-                textAlign: 'left'
-              }}>
-                Project Path
-              </label>
-              <input
-                type="text"
-                value={projectPath}
-                onChange={(e) => setProjectPath(e.target.value)}
-                placeholder="e.g., public or test-app"
-                style={{
-                  width: '100%',
-                  padding: '12px 16px',
-                  border: '1px solid #eaeaea',
-                  borderRadius: '8px',
-                  fontSize: '15px',
-                  fontFamily: 'Menlo, Monaco, monospace',
-                  background: 'white',
-                  color: '#000',
-                  outline: 'none',
-                  transition: 'border-color 0.15s',
-                  boxSizing: 'border-box'
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = '#000'}
-                onBlur={(e) => e.currentTarget.style.borderColor = '#eaeaea'}
-              />
-              {projectPath !== 'public' && (
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  marginTop: '12px'
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={useMetro}
-                    onChange={(e) => setUseMetro(e.target.checked)}
-                    style={{
-                      width: '18px',
-                      height: '18px',
-                      cursor: 'pointer'
-                    }}
-                  />
-                  <span style={{
-                    fontSize: '14px',
-                    color: '#000',
-                    fontWeight: '500'
-                  }}>
-                    Use Metro Bundler
-                  </span>
-                </label>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* STEP 3: Console (show when auto-reload is active) */}
+        {/* Console (show when auto-reload is active) */}
         {autoReload && (
           <>
             {/* Compact Control Bar at Top */}
