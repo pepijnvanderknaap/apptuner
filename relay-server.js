@@ -91,10 +91,9 @@ class RelaySession {
     // Route messages based on client type and message type
     switch (fromType) {
       case 'cli':
-        // CLI messages go to dashboard, desktop, and mobile
+        // CLI messages go to dashboard and desktop
         if (this.dashboardWs) this.sendTo(this.dashboardWs, message);
         if (this.desktopWs) this.sendTo(this.desktopWs, message);
-        if (this.mobileWs) this.sendTo(this.mobileWs, message);
         break;
 
       case 'dashboard':
