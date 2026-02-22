@@ -41,6 +41,8 @@ class RelaySession {
         break;
       case 'mobile':
         this.mobileWs = ws;
+        // Notify all desktop-side clients that mobile is connected
+        this.notifyDesktopSide({ type: 'mobile_connected', timestamp: Date.now() });
         break;
     }
 
