@@ -81,7 +81,7 @@ class RelaySession {
     // Handle ping/pong for health monitoring
     if (message.type === 'ping') {
       const sourceWs = this.getWebSocket(fromType);
-      if (sourceWs) {
+      if (sourceWs && sourceWs.readyState === WebSocket.OPEN) {
         this.sendTo(sourceWs, {
           type: 'pong',
           timestamp: Date.now(),
