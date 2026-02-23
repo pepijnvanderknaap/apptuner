@@ -31,6 +31,11 @@ class RelaySession {
     // Store WebSocket by client type
     switch (clientType) {
       case 'cli':
+        // If another CLI is already connected for this project, kick it out
+        if (this.cliWs && this.cliWs.readyState === WebSocket.OPEN) {
+          console.log(`Kicking old CLI from project ${this.sessionId} — new CLI taking over`);
+          this.cliWs.close(1000, 'New CLI connected for this project');
+        }
         this.cliWs = ws;
         break;
       case 'dashboard':

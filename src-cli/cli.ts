@@ -16,9 +16,14 @@ program
 program
   .command('start')
   .description('Start AppTuner development server')
+  .argument('[path]', 'Path to your React Native project (or use -p)')
   .option('-p, --project <path>', 'Path to your React Native project', process.cwd())
   .option('--no-qr', 'Disable QR code display')
-  .action(startCommand);
+  .action((argPath, options) => {
+    // Positional arg takes priority over -p flag
+    if (argPath) options.project = argPath;
+    startCommand(options);
+  });
 
 program
   .command('stop')

@@ -7,7 +7,7 @@ const chokidar = require('chokidar');
 const WebSocket = require('ws');
 const path = require('path');
 
-const PORT = 3030;
+const PORT = parseInt(process.env.WATCHER_PORT || '3030', 10);
 const wss = new WebSocket.Server({ port: PORT });
 
 console.log(`🔍 File watcher server running on ws://localhost:${PORT}`);

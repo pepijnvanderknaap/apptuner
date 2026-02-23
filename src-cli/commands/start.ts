@@ -2,6 +2,7 @@ import { spawn } from 'child_process';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs/promises';
+import net from 'net';
 import chalk from 'chalk';
 import ora from 'ora';
 import { WebSocket } from 'ws';
@@ -15,14 +16,41 @@ interface StartOptions {
   qr: boolean;
 }
 
-// Generate random 6-character session ID
-function generateSessionId(): string {
+// Find a free port starting from the given port number
+function findFreePort(start: number): Promise<number> {
+  return new Promise((resolve) => {
+    const server = net.createServer();
+    server.listen(start, '127.0.0.1', () => {
+      const port = (server.address() as net.AddressInfo).port;
+      server.close(() => resolve(port));
+    });
+    server.on('error', () => resolve(findFreePort(start + 1)));
+  });
+}
+
+// Generate random 6-character ID
+function generateId(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let result = '';
   for (let i = 0; i < 6; i++) {
     result += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return result;
+}
+
+// Get or create a stable project ID stored in .apptuner.json
+async function getOrCreateProjectId(projectPath: string): Promise<string> {
+  const configPath = path.join(projectPath, '.apptuner.json');
+  try {
+    const raw = await fs.readFile(configPath, 'utf-8');
+    const config = JSON.parse(raw);
+    if (config.projectId) return config.projectId;
+  } catch {
+    // File doesn't exist or is invalid — create it
+  }
+  const projectId = generateId();
+  await fs.writeFile(configPath, JSON.stringify({ projectId }, null, 2));
+  return projectId;
 }
 
 // Adapter that wraps the relay WebSocket for sending bundles - supports hot-swapping on reconnect
@@ -76,9 +104,9 @@ export async function startCommand(options: StartOptions) {
 
   spinner.succeed(`Project validated: ${chalk.cyan(packageJson.name || 'Unnamed Project')}`);
 
-  // Step 2: Generate session ID (stays the same across reconnects)
-  const sessionId = generateSessionId();
-  spinner.succeed(`Session ID: ${chalk.cyan(sessionId)}`);
+  // Step 2: Get or create stable project ID (persisted in .apptuner.json)
+  const sessionId = await getOrCreateProjectId(projectPath);
+  spinner.succeed(`Project ID: ${chalk.cyan(sessionId)}`);
 
   // Step 3: Start local services
   console.log(chalk.white('\nStarting local services...\n'));
@@ -86,15 +114,20 @@ export async function startCommand(options: StartOptions) {
   // __dirname in compiled dist/cli.js is the dist/ folder, so go up one level to project root
   const rootDir = path.join(__dirname, '..');
 
+  // Find free ports for Metro and Watcher
+  const metroPort = await findFreePort(3031);
+  const watcherPort = await findFreePort(3030);
+
   // Start Metro bundler
   spinner.start('Starting Metro bundler...');
   const metroProcess = spawn('node', [path.join(rootDir, 'metro-server.cjs')], {
     cwd: projectPath,
     stdio: 'inherit',
     detached: false,
+    env: { ...process.env, METRO_PORT: String(metroPort) },
   });
   await new Promise(resolve => setTimeout(resolve, 2000));
-  spinner.succeed('Metro bundler started (port 3031)');
+  spinner.succeed(`Metro bundler started (port ${metroPort})`);
 
   // Start file watcher
   spinner.start('Starting file watcher...');
@@ -102,16 +135,20 @@ export async function startCommand(options: StartOptions) {
     cwd: projectPath,
     stdio: 'inherit',
     detached: false,
+    env: { ...process.env, WATCHER_PORT: String(watcherPort) },
   });
   await new Promise(resolve => setTimeout(resolve, 1000));
-  spinner.succeed('File watcher started (port 3030)');
+  spinner.succeed(`File watcher started (port ${watcherPort})`);
 
   // Step 4: Connect to relay with auto-reconnect
   const relayUrl = process.env.APPTUNER_RELAY_URL || 'wss://relay.apptuner.io';
   const isLocalTesting = relayUrl.includes('localhost') || relayUrl.includes('127.0.0.1');
-  const dashboardUrl = isLocalTesting
-    ? `http://localhost:1420/?session=${sessionId}`
-    : `https://apptuner.io/?session=${sessionId}`;
+  const projectName = encodeURIComponent(packageJson.name || 'Unnamed Project');
+  // APPTUNER_DASHBOARD_URL lets you point at a local build (e.g. http://localhost:4173)
+  // so fixes to BrowserApp take effect before the next apptuner.io deployment.
+  const baseDashboardUrl = process.env.APPTUNER_DASHBOARD_URL ||
+    (isLocalTesting ? 'http://localhost:1420' : 'https://apptuner.io');
+  const dashboardUrl = `${baseDashboardUrl}/?session=${sessionId}&name=${projectName}`;
 
   let isShuttingDown = false;
   let isFirstConnect = true;
@@ -121,15 +158,43 @@ export async function startCommand(options: StartOptions) {
 
   // Step 5: Setup direct connections to local watcher + metro servers
   let autoReloadStarted = false;
+  let bundleRequester: (() => void) | null = null; // Set by startAutoReload, used by relay handler
 
   async function startAutoReload() {
     if (autoReloadStarted) return;
     autoReloadStarted = true;
 
+    // Clear Metro's cache for this project when starting a new session
+    console.log(chalk.gray('🗑️  Clearing Metro cache for fresh session...'));
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const clearWs = new WebSocket(`ws://localhost:${metroPort}`);
+        clearWs.on('open', () => {
+          clearWs.send(JSON.stringify({
+            type: 'clear_cache',
+            projectPath,
+          }));
+        });
+        clearWs.on('message', (data) => {
+          const msg = JSON.parse(data.toString());
+          if (msg.type === 'cache_cleared') {
+            console.log(chalk.gray(`✓ Cleared ${msg.count} cached bundles`));
+            clearWs.close();
+            resolve();
+          }
+        });
+        clearWs.on('error', () => reject());
+        setTimeout(() => reject(new Error('Cache clear timeout')), 5000);
+      });
+    } catch (error) {
+      console.log(chalk.yellow('⚠️  Could not clear Metro cache, continuing...'));
+    }
+
     let isBundling = false;
     let pendingBundle = false;
 
     async function requestBundle(): Promise<void> {
+      // also exposed via bundleRequester for external callers (e.g. mobile_connected)
       if (isBundling) {
         pendingBundle = true;
         return;
@@ -142,7 +207,7 @@ export async function startCommand(options: StartOptions) {
 
       try {
         const code = await new Promise<string>((resolve, reject) => {
-          const metroWs = new WebSocket('ws://localhost:3031');
+          const metroWs = new WebSocket(`ws://localhost:${metroPort}`);
 
           metroWs.on('open', () => {
             metroWs.send(JSON.stringify({
@@ -190,8 +255,12 @@ export async function startCommand(options: StartOptions) {
       }
     }
 
+    // Expose requestBundle to relay handler so mobile_connected can trigger a fresh bundle
+    bundleRequester = requestBundle;
+
     // Connect to watcher server
-    const watcherWs = new WebSocket('ws://localhost:3030');
+    const watcherWs = new WebSocket(`ws://localhost:${watcherPort}`);
+    let watcherPingInterval: ReturnType<typeof setInterval> | null = null;
 
     watcherWs.on('open', () => {
       // Tell watcher to watch the project directory
@@ -200,6 +269,13 @@ export async function startCommand(options: StartOptions) {
         path: projectPath,
         extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       }));
+
+      // Keepalive pings every 20s to prevent idle timeout
+      watcherPingInterval = setInterval(() => {
+        if (watcherWs.readyState === watcherWs.OPEN) {
+          watcherWs.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
+        }
+      }, 20000);
     });
 
     watcherWs.on('message', async (data) => {
@@ -220,6 +296,10 @@ export async function startCommand(options: StartOptions) {
     });
 
     watcherWs.on('close', () => {
+      if (watcherPingInterval) {
+        clearInterval(watcherPingInterval);
+        watcherPingInterval = null;
+      }
       if (!isShuttingDown) {
         console.log(chalk.yellow('Watcher disconnected'));
       }
@@ -269,6 +349,11 @@ export async function startCommand(options: StartOptions) {
         const message = JSON.parse(data.toString());
         if (message.type === 'mobile_connected') {
           console.log(chalk.green(`\n📱 Mobile device connected: ${message.deviceName || 'Unknown'}`));
+          // Send bundle to the newly connected device
+          if (bundleRequester) {
+            console.log(chalk.gray('📦 Sending bundle to new device...'));
+            bundleRequester();
+          }
         }
         if (message.type === 'mobile_disconnected') {
           console.log(chalk.yellow(`\n📱 Mobile device disconnected`));
@@ -331,13 +416,25 @@ export async function startCommand(options: StartOptions) {
       currentWs.close();
     }
 
+    // Kill Metro and Watcher processes forcefully
     if (metroProcess.pid) {
-      process.kill(metroProcess.pid, 'SIGTERM');
+      try {
+        process.kill(metroProcess.pid, 'SIGKILL');
+      } catch (e) {
+        // Process might already be dead
+      }
     }
 
     if (watcherProcess.pid) {
-      process.kill(watcherProcess.pid, 'SIGTERM');
+      try {
+        process.kill(watcherProcess.pid, 'SIGKILL');
+      } catch (e) {
+        // Process might already be dead
+      }
     }
+
+    // Give processes time to die before exiting
+    await new Promise(resolve => setTimeout(resolve, 500));
 
     await fs.unlink(pidFile).catch(() => {});
 

@@ -25,6 +25,8 @@ import ErrorOverlay from './components/ErrorOverlay';
 import {RelayConnection} from './services/relay';
 import {BundleExecutor} from './services/executor';
 import {ConsoleInterceptor} from './services/console-interceptor';
+import {saveProject, getRecentProjects, removeProject, RecentProject} from './services/storage';
+import RecentProjects from './components/RecentProjects';
 
 // Suppress all deprecation warnings and errors from dependencies
 LogBox.ignoreLogs([
@@ -47,6 +49,9 @@ LogBox.ignoreLogs([
   // Other common warnings
   'Remote debugger',
   'Require cycle',
+
+  // React Native dev infrastructure trying to reach Metro packager — not relevant to AppTuner
+  'Cannot connect to Metro',
 ]);
 
 
@@ -61,6 +66,8 @@ export default function App() {
   const [showErrorOverlay, setShowErrorOverlay] = useState(false);
   const [errorStack, setErrorStack] = useState<string>('');
   const [showManualEntry, setShowManualEntry] = useState(false);
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
+  const [showRecents, setShowRecents] = useState(false);
 
   const connectionRef = useRef<RelayConnection | null>(null);
   const executorRef = useRef<BundleExecutor | null>(null);
@@ -90,6 +97,22 @@ export default function App() {
     };
   }, []);
 
+  // Load recent projects on mount and show them if any exist
+  useEffect(() => {
+    getRecentProjects().then(projects => {
+      if (projects.length > 0) {
+        setRecentProjects(projects);
+        setShowRecents(true);
+      }
+    });
+  }, []);
+
+  const refreshRecentProjects = async () => {
+    const projects = await getRecentProjects();
+    setRecentProjects(projects);
+    if (projects.length === 0) setShowRecents(false);
+  };
+
   // Monitor app state changes for auto-reconnection
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
@@ -101,7 +124,7 @@ export default function App() {
         const currentStatus = connectionRef.current?.getStatus();
         if (!connectionRef.current || currentStatus === 'disconnected' || currentStatus === 'error') {
           console.log('App returned to foreground, attempting to reconnect...');
-          connectToRelay(sessionId).catch(error => {
+          connectToRelay(sessionId, undefined).catch(error => {
             console.error('Auto-reconnect failed:', error);
           });
         }
@@ -149,8 +172,8 @@ export default function App() {
   // Handle QR code scan
   const handleQRScan = async (data: string) => {
     try {
-      // Parse QR code: apptuner://connect/{sessionId}
-      const match = data.match(/^apptuner:\/\/connect\/([a-zA-Z0-9]+)$/);
+      // Parse QR code: apptuner://connect/{projectId}?name=MyApp
+      const match = data.match(/^apptuner:\/\/connect\/([a-zA-Z0-9]+)/);
 
       if (!match) {
         setErrorMessage('Invalid QR code format');
@@ -158,12 +181,17 @@ export default function App() {
         return;
       }
 
-      const scannedSessionId = match[1];
-      setSessionId(scannedSessionId);
+      const scannedProjectId = match[1];
+      // Extract optional project name from query string
+      const nameMatch = data.match(/[?&]name=([^&]+)/);
+      const projectName = nameMatch ? decodeURIComponent(nameMatch[1]) : scannedProjectId;
+
+      setSessionId(scannedProjectId);
       setAppState('connecting');
+      setShowRecents(false);
 
       // Connect to relay
-      await connectToRelay(scannedSessionId);
+      await connectToRelay(scannedProjectId, projectName);
     } catch (error) {
       console.error('QR scan error:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Unknown error');
@@ -173,13 +201,12 @@ export default function App() {
 
   // Handle manual code entry
   const handleManualEntry = (code: string) => {
-    // Construct the URL format that handleQRScan expects
     const qrData = `apptuner://connect/${code}`;
     handleQRScan(qrData);
   };
 
-  // Connect to Cloudflare relay
-  const connectToRelay = async (sid: string) => {
+  // Connect to relay
+  const connectToRelay = async (sid: string, projectName?: string) => {
     try {
       // Enable auto-reconnection for this session
       shouldReconnectRef.current = true;
@@ -195,6 +222,12 @@ export default function App() {
       const connection = new RelayConnection(sid, relayUrl, interceptor.getOriginalConsole());
       connectionRef.current = connection;
 
+      // Clear old bundle from global scope to prevent rendering stale app
+      (global as any).App = null;
+      setBundleLoaded(false);
+      setBundleVersion(0);
+      console.log('[App] Cleared global.App and bundle state for fresh session');
+
       // Initialize bundle executor
       const executor = new BundleExecutor();
       executorRef.current = executor;
@@ -209,6 +242,12 @@ export default function App() {
       unsubscribeStatusRef.current = connection.onStatusChange(status => {
         if (status === 'connected') {
           setAppState('connected');
+          // Save to recent projects so user can reconnect without scanning QR
+          saveProject({
+            projectId: sid,
+            name: projectName || sid,
+            lastConnected: Date.now(),
+          }).then(refreshRecentProjects);
         } else if (status === 'error') {
           setAppState('error');
           setErrorMessage('Failed to connect to relay');
@@ -285,6 +324,13 @@ export default function App() {
     setShowErrorOverlay(false);
     setErrorStack('');
     setShowManualEntry(false);
+    // Go back to recents if we have any
+    getRecentProjects().then(projects => {
+      if (projects.length > 0) {
+        setRecentProjects(projects);
+        setShowRecents(true);
+      }
+    });
   };
 
   // Render based on app state
@@ -296,6 +342,23 @@ export default function App() {
             <ManualEntry
               onSubmit={handleManualEntry}
               onBack={() => setShowManualEntry(false)}
+            />
+          );
+        }
+
+        if (showRecents && recentProjects.length > 0) {
+          return (
+            <RecentProjects
+              projects={recentProjects}
+              onConnect={(projectId) => {
+                const project = recentProjects.find(p => p.projectId === projectId);
+                setSessionId(projectId);
+                setAppState('connecting');
+                setShowRecents(false);
+                connectToRelay(projectId, project?.name);
+              }}
+              onScanNew={() => setShowRecents(false)}
+              onProjectsChanged={refreshRecentProjects}
             />
           );
         }
@@ -342,11 +405,11 @@ export default function App() {
                 }
               })()}
 
-              {/* Small floating disconnect button */}
+              {/* Floating disconnect button */}
               <TouchableOpacity
                 style={styles.floatingDisconnectButton}
                 onPress={handleDisconnect}>
-                <Text style={styles.floatingDisconnectText}>✕</Text>
+                <Text style={styles.floatingDisconnectText}>✕  Disconnect</Text>
               </TouchableOpacity>
             </View>
           );
@@ -439,20 +502,21 @@ const styles = StyleSheet.create({
   },
   floatingDisconnectButton: {
     position: 'absolute',
-    top: 50,
-    right: 20,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    top: 52,
+    right: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.65)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1000,
   },
   floatingDisconnectText: {
     color: '#ffffff',
-    fontSize: 20,
+    fontSize: 14,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   title: {
     fontSize: 32,
