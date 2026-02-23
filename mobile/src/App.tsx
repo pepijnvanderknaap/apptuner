@@ -17,6 +17,7 @@ import {
   AppState,
   Linking,
 } from 'react-native';
+import RNShake from 'react-native-shake';
 import KeepAwake from 'react-native-keep-awake';
 import QRCodeScanner from './components/QRCodeScanner';
 import ManualEntry from './components/ManualEntry';
@@ -68,7 +69,7 @@ export default function App() {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [showRecents, setShowRecents] = useState(false);
-  const [showDisconnectOverlay, setShowDisconnectOverlay] = useState(false);
+  const [showShakeMenu, setShowShakeMenu] = useState(false);
 
   const connectionRef = useRef<RelayConnection | null>(null);
   const executorRef = useRef<BundleExecutor | null>(null);
@@ -169,6 +170,16 @@ export default function App() {
       }
     };
   }, []);
+
+  // Shake to show AppTuner menu (only when connected with bundle loaded)
+  useEffect(() => {
+    const subscription = RNShake.addListener(() => {
+      if (appState === 'connected' && bundleLoaded) {
+        setShowShakeMenu(true);
+      }
+    });
+    return () => subscription.remove();
+  }, [appState, bundleLoaded]);
 
   // Handle QR code scan
   const handleQRScan = async (data: string) => {
@@ -370,7 +381,7 @@ export default function App() {
             <Text style={styles.subtitle}>Scan QR code to connect</Text>
             <QRCodeScanner onScan={handleQRScan} />
             <Text style={styles.disconnectHint}>
-              Once connected, long press the ··· button at the bottom to leave the app
+              Shake to disconnect once connected
             </Text>
             <View style={styles.skipButtonContainer}>
               <TouchableOpacity
@@ -409,34 +420,30 @@ export default function App() {
                 }
               })()}
 
-              {/* Long-press handle at bottom to disconnect */}
-              <TouchableOpacity
-                style={styles.longPressHandle}
-                onLongPress={() => setShowDisconnectOverlay(true)}
-                delayLongPress={1000}
-                activeOpacity={0.6}>
-                <View style={styles.longPressDots}>
-                  <View style={styles.dot} />
-                  <View style={styles.dot} />
-                  <View style={styles.dot} />
-                </View>
-              </TouchableOpacity>
-
-              {/* Disconnect confirmation overlay */}
-              {showDisconnectOverlay && (
-                <View style={styles.disconnectOverlay}>
-                  <View style={styles.disconnectCard}>
-                    <Text style={styles.disconnectTitle}>Leave this app?</Text>
-                    <Text style={styles.disconnectSubtitle}>You'll return to the QR scanner</Text>
+              {/* AppTuner shake menu */}
+              {showShakeMenu && (
+                <View style={styles.shakeMenuOverlay}>
+                  <View style={styles.shakeMenuCard}>
+                    <Text style={styles.shakeMenuTitle}>AppTuner</Text>
                     <TouchableOpacity
-                      style={styles.disconnectConfirmBtn}
-                      onPress={handleDisconnect}>
-                      <Text style={styles.disconnectConfirmText}>Disconnect</Text>
+                      style={styles.shakeMenuBtn}
+                      onPress={() => {
+                        setShowShakeMenu(false);
+                        if (connectionRef.current) {
+                          connectionRef.current.requestBundle?.();
+                        }
+                      }}>
+                      <Text style={styles.shakeMenuBtnText}>🔄  Reload Bundle</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.disconnectCancelBtn}
-                      onPress={() => setShowDisconnectOverlay(false)}>
-                      <Text style={styles.disconnectCancelText}>Cancel</Text>
+                      style={[styles.shakeMenuBtn, styles.shakeMenuBtnDanger]}
+                      onPress={handleDisconnect}>
+                      <Text style={styles.shakeMenuBtnText}>↩  Disconnect</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.shakeMenuCancelBtn}
+                      onPress={() => setShowShakeMenu(false)}>
+                      <Text style={styles.shakeMenuCancelText}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -530,83 +537,61 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  longPressHandle: {
-    position: 'absolute',
-    bottom: 40,
-    alignSelf: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    borderRadius: 24,
-    zIndex: 1000,
-  },
-  longPressDots: {
-    flexDirection: 'row',
-    gap: 5,
-    alignItems: 'center',
-  },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.7)',
-  },
-  disconnectOverlay: {
+  shakeMenuOverlay: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'flex-end',
     zIndex: 2000,
   },
-  disconnectCard: {
+  shakeMenuCard: {
     backgroundColor: '#1c1c1e',
-    borderRadius: 20,
-    padding: 32,
-    marginHorizontal: 40,
-    alignItems: 'center',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 24,
+    paddingBottom: 40,
   },
-  disconnectTitle: {
-    color: '#ffffff',
-    fontSize: 20,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  disconnectSubtitle: {
+  shakeMenuTitle: {
     color: '#86868b',
-    fontSize: 15,
-    marginBottom: 28,
+    fontSize: 13,
+    fontWeight: '600',
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 16,
   },
-  disconnectConfirmBtn: {
-    width: '100%',
-    paddingVertical: 14,
-    backgroundColor: '#ff3b30',
+  shakeMenuBtn: {
+    backgroundColor: '#2c2c2e',
+    paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
-  disconnectConfirmText: {
+  shakeMenuBtnDanger: {
+    backgroundColor: '#3a1a1a',
+  },
+  shakeMenuBtnText: {
     color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '500',
+  },
+  shakeMenuCancelBtn: {
+    backgroundColor: '#2c2c2e',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  shakeMenuCancelText: {
+    color: '#007aff',
     fontSize: 17,
     fontWeight: '600',
-  },
-  disconnectCancelBtn: {
-    width: '100%',
-    paddingVertical: 14,
-    backgroundColor: '#2c2c2e',
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  disconnectCancelText: {
-    color: '#ffffff',
-    fontSize: 17,
   },
   disconnectHint: {
-    fontSize: 13,
+    fontSize: 16,
     color: '#86868b',
     textAlign: 'center',
     marginTop: 16,

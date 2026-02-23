@@ -85,6 +85,8 @@ export default function RecentProjects({
         <TouchableOpacity style={styles.scanButton} onPress={onScanNew}>
           <Text style={styles.scanButtonText}>+ Scan New Project</Text>
         </TouchableOpacity>
+
+        <Text style={styles.shakeHint}>Shake to disconnect once connected</Text>
       </View>
     </SafeAreaView>
   );
@@ -174,5 +176,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#007aff',
     fontWeight: '500',
+  },
+  shakeHint: {
+    fontSize: 14,
+    color: '#86868b',
+    textAlign: 'center',
+    marginTop: 12,
+    marginBottom: 8,
   },
 });
