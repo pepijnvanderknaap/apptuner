@@ -13,6 +13,14 @@ function BrowserApp() {
   const isCloudMode = window.location.hostname === 'apptuner.io' ||
     window.location.hostname.endsWith('.pages.dev');
 
+  // CLI mode: session was passed via URL param, meaning the CLI is driving bundle delivery.
+  // In this mode the dashboard is a viewer only — no bundle sending.
+  const isCliMode = new URLSearchParams(window.location.search).get('session') !== null;
+
+  // Project name from URL (e.g. ?name=MyApp passed by CLI)
+  const urlProjectName = new URLSearchParams(window.location.search).get('name');
+  const projectDisplayName = urlProjectName ? decodeURIComponent(urlProjectName) : null;
+
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [sessionId, setSessionId] = useState<string>('');
   const [devices, setDevices] = useState<Device[]>([]);
@@ -69,13 +77,16 @@ function BrowserApp() {
     };
   }, []);
 
-  // Auto-start auto-reload when device connects
+  // In CLI mode: auto-show console when device connects, but don't start ProjectManager.
+  // The CLI handles all bundle delivery — the dashboard is just a console viewer.
   useEffect(() => {
-    if (devices.length > 0 && !autoReload && !isTogglingRef.current && connectionRef.current) {
-      console.log('🚀 Device connected, auto-starting reload...');
-      toggleAutoReload();
+    if (isCliMode && devices.length > 0 && !autoReload) {
+      setAutoReload(true);
     }
-  }, [devices.length]);
+    if (isCliMode && devices.length === 0 && autoReload) {
+      setAutoReload(false);
+    }
+  }, [devices.length, isCliMode]);
 
   // Set up keyboard shortcuts (re-run when autoReload changes)
   useEffect(() => {
@@ -108,8 +119,12 @@ function BrowserApp() {
   // Generate QR code when session ID changes
   useEffect(() => {
     if (sessionId) {
-      // Generate QR code with proper URL format that mobile app expects
-      const qrData = `apptuner://connect/${sessionId}`;
+      // Include project name so mobile can display it in Recent Projects
+      const urlParams = new URLSearchParams(window.location.search);
+      const name = urlParams.get('name') || '';
+      const qrData = name
+        ? `apptuner://connect/${sessionId}?name=${encodeURIComponent(name)}`
+        : `apptuner://connect/${sessionId}`;
       QRCode.toDataURL(qrData, {
         width: 200,
         margin: 2,
@@ -224,8 +239,8 @@ function BrowserApp() {
         // Production: use VPS relay server
         relayUrl = 'wss://relay.apptuner.io';
       } else {
-        // Dev mode: use custom URL or default
-        relayUrl = localStorage.getItem('apptuner_relay_url') || 'ws://192.168.178.48:8787';
+        // Dev mode: use custom URL or default to VPS relay
+        relayUrl = localStorage.getItem('apptuner_relay_url') || 'wss://relay.apptuner.io';
       }
       await connection.connect(relayUrl);
 
@@ -413,8 +428,8 @@ function BrowserApp() {
         margin: '0 auto',
         padding: '42px 24px',
       }}>
-        {/* STEP 1: Connect Device (only show when NOT connected) */}
-        {devices.length === 0 && (
+        {/* STEP 1: Connect Device (only show when NOT connected AND not in stopped state) */}
+        {devices.length === 0 && !autoReload && (
           <div style={{
             background: 'white',
             border: '1px solid #eaeaea',
@@ -546,124 +561,35 @@ function BrowserApp() {
           </div>
         )}
 
+
         {/* Console (show when auto-reload is active) */}
         {autoReload && (
           <>
-            {/* Compact Control Bar at Top */}
+            {/* Slim control bar: project name + status */}
             <div style={{
-              background: 'white',
-              border: '1px solid #eaeaea',
-              borderRadius: '8px',
-              padding: '20px 24px',
-              marginBottom: '16px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: '20px'
+              marginBottom: '12px',
+              paddingLeft: '2px',
             }}>
-              {/* Left: Stop Button */}
-              <button
-                onClick={toggleAutoReload}
-                style={{
-                  padding: '12px 24px',
-                  background: '#000',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontSize: '15px',
-                  fontWeight: '600',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '0.85';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '1';
-                }}
-              >
-                Stop
-              </button>
-
-              {/* Center: Project Path */}
-              <div style={{
-                flex: 1,
-                minWidth: '200px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px'
-              }}>
-                <span style={{
-                  fontSize: '13px',
-                  color: '#666',
-                  fontWeight: '500'
-                }}>
-                  {projectPath}
-                </span>
+              <span style={{ fontSize: '14px', fontWeight: '500', color: '#333' }}>
+                {projectDisplayName || projectPath}
                 {lastBundleMetrics && (
-                  <>
-                    <span style={{ color: '#eaeaea' }}>•</span>
-                    <span style={{
-                      fontSize: '13px',
-                      color: '#666'
-                    }}>
-                      <span style={{ fontWeight: '600', color: '#000' }}>{lastBundleMetrics.sizeKB}</span> KB
-                    </span>
-                    <span style={{ color: '#eaeaea' }}>•</span>
-                    <span style={{
-                      fontSize: '13px',
-                      color: '#666'
-                    }}>
-                      <span style={{ fontWeight: '600', color: '#000' }}>{lastBundleMetrics.timeMs}</span> ms
-                    </span>
-                  </>
+                  <span style={{ fontWeight: '400', color: '#aaa', marginLeft: '10px' }}>
+                    {lastBundleMetrics.sizeKB} KB · {lastBundleMetrics.timeMs} ms
+                  </span>
                 )}
-              </div>
-
-              {/* Right: Keyboard Shortcuts */}
-              <div style={{
-                fontSize: '12px',
-                color: '#666',
-                display: 'flex',
-                gap: '16px',
-                alignItems: 'center'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <kbd style={{
-                    padding: '3px 7px',
-                    background: '#f5f5f5',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    fontFamily: 'Menlo, Monaco, monospace',
-                    fontSize: '11px',
-                    fontWeight: '500',
-                    color: '#333'
-                  }}>⌘R</kbd>
-                  <span>Reload</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <kbd style={{
-                    padding: '3px 7px',
-                    background: '#f5f5f5',
-                    border: '1px solid #ddd',
-                    borderRadius: '4px',
-                    fontFamily: 'Menlo, Monaco, monospace',
-                    fontSize: '11px',
-                    fontWeight: '500',
-                    color: '#333'
-                  }}>⌘K</kbd>
-                  <span>Clear</span>
-                </div>
-              </div>
+              </span>
             </div>
 
             {/* Console Panel */}
             <div style={{
               background: 'white',
-              border: '1px solid #eaeaea',
-              borderRadius: '8px',
+              borderRadius: '12px',
               overflow: 'hidden',
-              height: '600px'
+              height: '600px',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
             }}>
               <ConsolePanel
                 logs={consoleLogs}
@@ -671,6 +597,62 @@ function BrowserApp() {
                 maxLogs={maxLogs}
                 onMaxLogsChange={handleMaxLogsChange}
               />
+            </div>
+
+            {/* Share Section */}
+            <div style={{
+              marginTop: '20px',
+              background: 'white',
+              borderRadius: '12px',
+              padding: '28px 32px',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.07)',
+            }}>
+              <h3 style={{ margin: '0 0 6px 0', fontSize: '16px', fontWeight: '600', color: '#000' }}>
+                Share
+              </h3>
+              <p style={{ margin: '0 0 20px 0', fontSize: '14px', color: '#888', lineHeight: '1.5' }}>
+                Ask a friend or colleague to download the AppTuner app and enter this code. They'll see your app live on their phone and stay in sync with every change you make — from first prototype to final build.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <code style={{
+                  fontSize: '36px',
+                  fontFamily: 'Menlo, Monaco, monospace',
+                  fontWeight: '700',
+                  color: '#000',
+                  letterSpacing: '0.1em',
+                }}>
+                  {sessionId}
+                </code>
+                <button
+                  onClick={copySessionId}
+                  style={{
+                    padding: '10px 22px',
+                    background: copySuccess ? '#000' : 'white',
+                    color: copySuccess ? 'white' : '#000',
+                    border: '1.5px solid #000',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!copySuccess) {
+                      e.currentTarget.style.background = '#000';
+                      e.currentTarget.style.color = 'white';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!copySuccess) {
+                      e.currentTarget.style.background = 'white';
+                      e.currentTarget.style.color = '#000';
+                    }
+                  }}
+                >
+                  {copySuccess ? '✓ Copied' : 'Copy Code'}
+                </button>
+              </div>
             </div>
           </>
         )}
