@@ -5,8 +5,11 @@
  */
 
 import React, {useState} from 'react';
-import {StyleSheet, View} from 'react-native';
+import {StyleSheet, View, Dimensions} from 'react-native';
 import {RNCamera} from 'react-native-camera';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const CAMERA_SIZE = Math.min(320, SCREEN_WIDTH - 48);
 
 interface Props {
   onScan: (data: string) => void;
@@ -42,8 +45,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   camera: {
-    height: 320,
-    width: 320,
+    height: CAMERA_SIZE,
+    width: CAMERA_SIZE,
     borderRadius: 16,
     overflow: 'hidden',
   },

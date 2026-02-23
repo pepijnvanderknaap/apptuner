@@ -68,6 +68,7 @@ export default function App() {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [showRecents, setShowRecents] = useState(false);
+  const [showDisconnectOverlay, setShowDisconnectOverlay] = useState(false);
 
   const connectionRef = useRef<RelayConnection | null>(null);
   const executorRef = useRef<BundleExecutor | null>(null);
@@ -368,6 +369,9 @@ export default function App() {
             <Text style={styles.title}>AppTuner</Text>
             <Text style={styles.subtitle}>Scan QR code to connect</Text>
             <QRCodeScanner onScan={handleQRScan} />
+            <Text style={styles.disconnectHint}>
+              Once connected, long press the ··· button at the bottom to leave the app
+            </Text>
             <View style={styles.skipButtonContainer}>
               <TouchableOpacity
                 style={styles.skipButton}
@@ -405,12 +409,38 @@ export default function App() {
                 }
               })()}
 
-              {/* Floating disconnect button */}
+              {/* Long-press handle at bottom to disconnect */}
               <TouchableOpacity
-                style={styles.floatingDisconnectButton}
-                onPress={handleDisconnect}>
-                <Text style={styles.floatingDisconnectText}>✕  Disconnect</Text>
+                style={styles.longPressHandle}
+                onLongPress={() => setShowDisconnectOverlay(true)}
+                delayLongPress={1000}
+                activeOpacity={0.6}>
+                <View style={styles.longPressDots}>
+                  <View style={styles.dot} />
+                  <View style={styles.dot} />
+                  <View style={styles.dot} />
+                </View>
               </TouchableOpacity>
+
+              {/* Disconnect confirmation overlay */}
+              {showDisconnectOverlay && (
+                <View style={styles.disconnectOverlay}>
+                  <View style={styles.disconnectCard}>
+                    <Text style={styles.disconnectTitle}>Leave this app?</Text>
+                    <Text style={styles.disconnectSubtitle}>You'll return to the QR scanner</Text>
+                    <TouchableOpacity
+                      style={styles.disconnectConfirmBtn}
+                      onPress={handleDisconnect}>
+                      <Text style={styles.disconnectConfirmText}>Disconnect</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.disconnectCancelBtn}
+                      onPress={() => setShowDisconnectOverlay(false)}>
+                      <Text style={styles.disconnectCancelText}>Cancel</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
             </View>
           );
         }
@@ -500,23 +530,88 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  floatingDisconnectButton: {
+  longPressHandle: {
     position: 'absolute',
-    top: 52,
-    right: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.65)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    bottom: 40,
+    alignSelf: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: 24,
     zIndex: 1000,
   },
-  floatingDisconnectText: {
+  longPressDots: {
+    flexDirection: 'row',
+    gap: 5,
+    alignItems: 'center',
+  },
+  dot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.7)',
+  },
+  disconnectOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 2000,
+  },
+  disconnectCard: {
+    backgroundColor: '#1c1c1e',
+    borderRadius: 20,
+    padding: 32,
+    marginHorizontal: 40,
+    alignItems: 'center',
+  },
+  disconnectTitle: {
     color: '#ffffff',
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: '600',
-    letterSpacing: 0.3,
+    marginBottom: 8,
+  },
+  disconnectSubtitle: {
+    color: '#86868b',
+    fontSize: 15,
+    marginBottom: 28,
+    textAlign: 'center',
+  },
+  disconnectConfirmBtn: {
+    width: '100%',
+    paddingVertical: 14,
+    backgroundColor: '#ff3b30',
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  disconnectConfirmText: {
+    color: '#ffffff',
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  disconnectCancelBtn: {
+    width: '100%',
+    paddingVertical: 14,
+    backgroundColor: '#2c2c2e',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  disconnectCancelText: {
+    color: '#ffffff',
+    fontSize: 17,
+  },
+  disconnectHint: {
+    fontSize: 13,
+    color: '#86868b',
+    textAlign: 'center',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 32,
   },
   title: {
     fontSize: 32,
