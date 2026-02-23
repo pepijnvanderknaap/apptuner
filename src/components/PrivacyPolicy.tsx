@@ -84,7 +84,7 @@ export function PrivacyPolicy({ onBack }: { onBack: () => void }) {
           <section style={{ marginBottom: '32px' }}>
             <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '12px' }}>4. Third-Party Services</h3>
             <p style={{ color: '#666', lineHeight: '1.7' }}>
-              We use Cloudflare for relay services. We do not sell or share your personal information
+              We operate our own relay server to facilitate connections between your devices. We do not sell or share your personal information
               with third parties for marketing purposes.
             </p>
           </section>

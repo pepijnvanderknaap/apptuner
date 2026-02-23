@@ -1,5 +1,5 @@
 /**
- * Connection service for managing WebSocket connection to Cloudflare relay with auto-reconnect
+ * Connection service for managing WebSocket connection to the relay server with auto-reconnect
  */
 
 type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
@@ -30,7 +30,7 @@ export class ConnectionManager {
   }
 
   /**
-   * Connect to the Cloudflare Workers relay
+   * Connect to the relay server
    */
   async connect(relayUrl: string = 'ws://localhost:8787'): Promise<void> {
     // Prevent multiple simultaneous connections

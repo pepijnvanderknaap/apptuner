@@ -18,7 +18,8 @@ export function Paywall() {
     setLoading(tier);
 
     try {
-      const response = await fetch('/api/create-checkout-session', {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || '';
+      const response = await fetch(`${apiBase}/api/create-checkout-session`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

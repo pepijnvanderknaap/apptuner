@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * AppTuner Relay Server - Standalone Node.js version
- * Converts Cloudflare Workers relay to run on VPS
+ * AppTuner Relay Server — Node.js VPS edition
  */
 
 import { WebSocketServer, WebSocket } from 'ws';
@@ -95,7 +94,7 @@ class RelaySession {
       return; // Don't route ping messages
     }
 
-    // Route message based on source (matching Cloudflare relay logic)
+    // Route message based on source
     if (fromType === 'mobile') {
       // Mobile → All desktop-side clients (CLI, dashboard, desktop)
       this.notifyDesktopSide(message);
@@ -175,12 +174,245 @@ function getSessionIdFromPath(pathname) {
   return null;
 }
 
-// Create HTTP server
-const server = http.createServer((req, res) => {
+// --- Stripe / payment helpers ---
+
+function readBody(req) {
+  return new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', chunk => (data += chunk));
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  });
+}
+
+function jsonResponse(res, status, body, extraHeaders = {}) {
+  const headers = {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    ...extraHeaders,
+  };
+  res.writeHead(status, headers);
+  res.end(JSON.stringify(body));
+}
+
+function verifyStripeSignature(payload, signature, secret) {
+  const parts = signature.split(',');
+  const timestamp = parts.find(p => p.startsWith('t='))?.split('=')[1];
+  const sig = parts.find(p => p.startsWith('v1='))?.split('=')[1];
+  if (!timestamp || !sig) return false;
+  if (Math.abs(Date.now() / 1000 - parseInt(timestamp)) > 300) return false;
+  const computed = crypto
+    .createHmac('sha256', secret)
+    .update(`${timestamp}.${payload}`)
+    .digest('hex');
+  return computed === sig;
+}
+
+async function supabasePatch(url, serviceKey, table, filter, updates) {
+  const res = await fetch(`${url}/rest/v1/${table}?${filter}`, {
+    method: 'PATCH',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({ ...updates, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`Supabase PATCH failed: ${await res.text()}`);
+}
+
+async function supabaseGet(url, serviceKey, table, filter) {
+  const res = await fetch(`${url}/rest/v1/${table}?${filter}`, {
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+    },
+  });
+  return res.json();
+}
+
+async function supabaseInsert(url, serviceKey, table, row) {
+  await fetch(`${url}/rest/v1/${table}`, {
+    method: 'POST',
+    headers: {
+      apikey: serviceKey,
+      Authorization: `Bearer ${serviceKey}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=minimal',
+    },
+    body: JSON.stringify({ ...row, created_at: new Date().toISOString() }),
+  });
+}
+
+async function handleCreateCheckoutSession(req, res) {
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeKey) return jsonResponse(res, 500, { error: 'Stripe not configured' });
+
+  let body;
+  try {
+    body = JSON.parse(await readBody(req));
+  } catch {
+    return jsonResponse(res, 400, { error: 'Invalid JSON' });
+  }
+
+  const { priceId, userId, tier } = body;
+  if (!priceId || !userId) return jsonResponse(res, 400, { error: 'Missing priceId or userId' });
+
+  const origin = req.headers.origin || 'https://apptuner.io';
+  const successUrl = `${origin}/?session_id={CHECKOUT_SESSION_ID}&payment=success`;
+  const cancelUrl = `${origin}/?payment=cancelled`;
+
+  const stripeRes = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${stripeKey}`,
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      'payment_method_types[]': 'card',
+      'line_items[0][price]': priceId,
+      'line_items[0][quantity]': '1',
+      mode: tier === 'lifetime' ? 'payment' : 'subscription',
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      client_reference_id: userId,
+      'metadata[userId]': userId,
+      'metadata[priceId]': priceId,
+      'metadata[tier]': tier,
+      allow_promotion_codes: 'true',
+    }),
+  });
+
+  const session = await stripeRes.json();
+  if (!stripeRes.ok) return jsonResponse(res, 400, { error: session.error?.message || 'Stripe error' });
+  return jsonResponse(res, 200, { sessionId: session.id, url: session.url });
+}
+
+async function handleStripeWebhook(req, res) {
+  const payload = await readBody(req);
+  const signature = req.headers['stripe-signature'] || '';
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (webhookSecret) {
+    if (!verifyStripeSignature(payload, signature, webhookSecret)) {
+      res.writeHead(400);
+      return res.end('Invalid signature');
+    }
+  } else {
+    console.warn('STRIPE_WEBHOOK_SECRET not set — skipping signature check');
+  }
+
+  let event;
+  try {
+    event = JSON.parse(payload);
+  } catch {
+    res.writeHead(400);
+    return res.end('Invalid JSON');
+  }
+
+  console.log(`Stripe webhook: ${event.type}`);
+
+  try {
+    switch (event.type) {
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        const userId = session.metadata?.userId || session.client_reference_id;
+        if (!userId) { console.error('No userId in checkout session'); break; }
+        const tier = session.mode === 'payment' ? 'lifetime' : (session.metadata?.tier || 'monthly');
+        await supabasePatch(supabaseUrl, serviceKey, 'users', `id=eq.${userId}`, {
+          subscription_status: 'active',
+          subscription_tier: tier,
+          stripe_customer_id: session.customer,
+          stripe_subscription_id: session.subscription,
+        });
+        if (session.payment_intent) {
+          await supabaseInsert(supabaseUrl, serviceKey, 'payment_history', {
+            user_id: userId,
+            stripe_payment_intent_id: session.payment_intent,
+            amount: session.amount_total || 0,
+            currency: session.currency || 'usd',
+            status: 'succeeded',
+            tier,
+          });
+        }
+        console.log(`Payment successful for user ${userId}, tier: ${tier}`);
+        break;
+      }
+      case 'invoice.payment_succeeded': {
+        const invoice = event.data.object;
+        if (!invoice.customer) break;
+        const users = await supabaseGet(supabaseUrl, serviceKey, 'users', `stripe_customer_id=eq.${invoice.customer}&select=id`);
+        if (users.length === 0) { console.error(`No user for customer ${invoice.customer}`); break; }
+        await supabasePatch(supabaseUrl, serviceKey, 'users', `id=eq.${users[0].id}`, { subscription_status: 'active' });
+        console.log(`Subscription renewed for customer ${invoice.customer}`);
+        break;
+      }
+      case 'customer.subscription.deleted':
+      case 'invoice.payment_failed': {
+        const obj = event.data.object;
+        if (!obj.customer) break;
+        const users = await supabaseGet(supabaseUrl, serviceKey, 'users', `stripe_customer_id=eq.${obj.customer}&select=id`);
+        if (users.length > 0) {
+          await supabasePatch(supabaseUrl, serviceKey, 'users', `id=eq.${users[0].id}`, { subscription_status: 'cancelled' });
+          console.log(`Subscription cancelled for customer ${obj.customer}`);
+        }
+        break;
+      }
+      default:
+        console.log(`Unhandled Stripe event: ${event.type}`);
+    }
+  } catch (err) {
+    console.error('Webhook error:', err.message);
+    return jsonResponse(res, 200, { received: true, error: err.message });
+  }
+
+  return jsonResponse(res, 200, { received: true });
+}
+
+// --- HTTP server ---
+
+const server = http.createServer(async (req, res) => {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+    return res.end();
+  }
+
   // Health check endpoint
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ status: 'ok', sessions: sessions.size }));
+    return;
+  }
+
+  // Stripe: create checkout session
+  if (req.method === 'POST' && req.url === '/api/create-checkout-session') {
+    try {
+      await handleCreateCheckoutSession(req, res);
+    } catch (err) {
+      console.error('Checkout error:', err);
+      jsonResponse(res, 500, { error: 'Internal server error' });
+    }
+    return;
+  }
+
+  // Stripe: webhook
+  if (req.method === 'POST' && req.url === '/api/stripe-webhook') {
+    try {
+      await handleStripeWebhook(req, res);
+    } catch (err) {
+      console.error('Webhook error:', err);
+      jsonResponse(res, 500, { error: 'Internal server error' });
+    }
     return;
   }
 

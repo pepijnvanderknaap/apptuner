@@ -9,9 +9,9 @@ import { Toast, ToastType } from './components/Toast';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
 function BrowserApp() {
-  // Detect if running on apptuner.io or pages.dev (cloud mode) vs localhost (dev mode)
+  // Detect if running on apptuner.io (cloud mode) vs localhost (dev mode)
   const isCloudMode = window.location.hostname === 'apptuner.io' ||
-    window.location.hostname.endsWith('.pages.dev');
+    window.location.hostname.endsWith('.apptuner.io');
 
   // CLI mode: session was passed via URL param, meaning the CLI is driving bundle delivery.
   // In this mode the dashboard is a viewer only — no bundle sending.
@@ -701,7 +701,7 @@ function BrowserApp() {
               lineHeight: '1.5',
               marginBottom: '24px',
             }}>
-              By default, AppTuner uses Cloudflare Workers as a relay server. If Cloudflare is blocked in your region, you can deploy our relay code to your own server.
+              By default, AppTuner connects through our relay server at relay.apptuner.io. You can also self-host the relay on your own server.
             </p>
 
             <div style={{ marginBottom: '24px' }}>

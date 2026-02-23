@@ -336,7 +336,7 @@ export async function startCommand(options: StartOptions) {
         console.log(chalk.green('✅ Relay reconnected\n'));
       }
 
-      // Keepalive pings every 20s (Cloudflare drops idle WS after ~30s)
+      // Keepalive pings every 20s to maintain idle WebSocket connection
       pingInterval = setInterval(() => {
         if (ws.readyState === ws.OPEN) {
           ws.send(JSON.stringify({ type: 'ping', timestamp: Date.now() }));
