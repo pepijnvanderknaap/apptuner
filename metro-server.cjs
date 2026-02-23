@@ -4,7 +4,7 @@ const fs = require('fs');
 const crypto = require('crypto');
 const WebSocket = require('ws');
 
-const PORT = 3031;
+const PORT = parseInt(process.env.METRO_PORT || '3031', 10);
 const wss = new WebSocket.Server({ port: PORT });
 
 console.log(`📦 Metro bundler server running on ws://localhost:${PORT}`);
@@ -60,6 +60,21 @@ wss.on('connection', (ws) => {
   ws.on('message', async (message) => {
     try {
       const data = JSON.parse(message);
+
+      // Handle cache clearing for new sessions/projects
+      if (data.type === 'clear_cache') {
+        const { projectPath } = data;
+        const cleared = [];
+        for (const [key] of bundleCache.entries()) {
+          if (key.startsWith(projectPath + '::')) {
+            bundleCache.delete(key);
+            cleared.push(key);
+          }
+        }
+        console.log(`🗑️  Cleared ${cleared.length} cached bundles for ${projectPath}`);
+        ws.send(JSON.stringify({ type: 'cache_cleared', count: cleared.length }));
+        return;
+      }
 
       if (data.type === 'bundle') {
         const { projectPath, entryPoint = 'App.tsx' } = data;
@@ -215,6 +230,7 @@ function createErrorBundle(error) {
   // Create a bundle that renders an error screen
   // This will be executed on the phone just like a normal bundle
   const errorBundle = `
+(function() {
 // Error overlay bundle - match normal bundle structure
 console.log('[ErrorBundle] Starting...');
 
@@ -396,7 +412,7 @@ if (!React || !ReactNative) {
   console.log('[ErrorBundle] Set this.App');
 
   console.log('[ErrorBundle] Error overlay ready to display');
-}.call(this, (typeof global !== 'undefined' ? global : (typeof window !== 'undefined' ? window : this))));
+}).call(this, (typeof global !== 'undefined' ? global : (typeof window !== 'undefined' ? window : this)));
 `;
 
   return errorBundle;
