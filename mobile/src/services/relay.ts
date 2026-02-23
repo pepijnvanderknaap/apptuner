@@ -18,6 +18,9 @@ export class RelayConnection {
   private statusHandlers: Set<StatusHandler> = new Set();
   private bundleHandlers: Set<BundleUpdateHandler> = new Set();
 
+  // Set to true on explicit disconnect() to prevent auto-reconnect loop
+  private intentionalDisconnect = false;
+
   // Heartbeat/ping-pong for connection health
   private pingInterval: NodeJS.Timeout | null = null;
   private pongTimeout: NodeJS.Timeout | null = null;
@@ -49,6 +52,7 @@ export class RelayConnection {
       return;
     }
 
+    this.intentionalDisconnect = false;
     this.updateStatus('connecting');
 
     try {
@@ -94,6 +98,7 @@ export class RelayConnection {
    * Disconnect from relay
    */
   disconnect(): void {
+    this.intentionalDisconnect = true;
     this.stopHeartbeat();
     this.clearReconnectTimeout();
 
@@ -243,6 +248,11 @@ export class RelayConnection {
    * Attempt to reconnect with exponential backoff
    */
   private attemptReconnect(): void {
+    if (this.intentionalDisconnect) {
+      console.log('[Relay] Intentional disconnect — skipping reconnect');
+      return;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.log('[Relay] Max reconnection attempts reached');
       this.updateStatus('error');
