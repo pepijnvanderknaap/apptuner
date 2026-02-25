@@ -9,7 +9,7 @@ import http from 'http';
 import crypto from 'crypto';
 
 const PORT = process.env.PORT || 3000;
-const MAX_MESSAGE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_MESSAGE_SIZE = 50 * 1024 * 1024; // 50MB — large Expo bundles can exceed 10MB
 
 // Session storage (replaces Durable Objects)
 class RelaySession {
