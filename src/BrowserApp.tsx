@@ -5,6 +5,7 @@ import { ProjectManager, BundleMetrics } from './services/project-manager';
 import { ConsolePanel, ConsoleLog } from './components/ConsolePanel';
 import { Device } from './components/DeviceList';
 import { Toast, ToastType } from './components/Toast';
+import { BuildPage } from './components/BuildPage';
 
 type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error';
 
@@ -21,6 +22,7 @@ function BrowserApp() {
   const urlProjectName = new URLSearchParams(window.location.search).get('name');
   const projectDisplayName = urlProjectName ? decodeURIComponent(urlProjectName) : null;
 
+  const [page, setPage] = useState<'dev' | 'build'>('dev');
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [sessionId, setSessionId] = useState<string>('');
   const [devices, setDevices] = useState<Device[]>([]);
@@ -368,14 +370,39 @@ function BrowserApp() {
           alignItems: 'center',
           justifyContent: 'space-between'
         }}>
-          <h1 style={{
-            fontSize: '18px',
-            fontWeight: '600',
-            color: '#000',
-            margin: 0
-          }}>
-            AppTuner
-          </h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+            <h1 style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              color: '#000',
+              margin: 0
+            }}>
+              AppTuner
+            </h1>
+            {/* Tab switcher */}
+            <div style={{ display: 'flex', gap: 2, background: '#f0f0f0', borderRadius: 6, padding: 3 }}>
+              {(['dev', 'build'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setPage(tab)}
+                  style={{
+                    background: page === tab ? '#fff' : 'transparent',
+                    border: 'none',
+                    borderRadius: 4,
+                    padding: '4px 12px',
+                    fontSize: 13,
+                    fontWeight: page === tab ? 600 : 400,
+                    color: page === tab ? '#000' : '#666',
+                    cursor: 'pointer',
+                    boxShadow: page === tab ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {tab === 'dev' ? 'Dev' : 'Build IPA'}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Change Relay Link (only show when no devices connected) */}
           {devices.length === 0 && (
@@ -422,11 +449,19 @@ function BrowserApp() {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Build IPA Page */}
+      {page === 'build' && (
+        <div style={{ maxWidth: '800px', margin: '0 auto', padding: '42px 24px', background: '#111', minHeight: '100vh' }}>
+          <BuildPage />
+        </div>
+      )}
+
+      {/* Main Content (Dev tab) */}
       <div style={{
         maxWidth: '800px',
         margin: '0 auto',
         padding: '42px 24px',
+        display: page === 'dev' ? undefined : 'none',
       }}>
         {/* STEP 1: Connect Device (only show when NOT connected AND not in stopped state) */}
         {devices.length === 0 && !autoReload && (

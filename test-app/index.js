@@ -1,20 +1,7 @@
-import React from 'react';
-import AppComponent from './App';
+import { AppRegistry } from 'react-native';
+import App from './App';
 
-// Wrap the component to ensure it's properly executable
-function App() {
-  return React.createElement(AppComponent);
-}
+// AppTuner reads global.App to render the component
+global.App = App;
 
-// Export for Metro's module system
-export default App;
-
-// Also expose globally for non-Metro bundles
-// Check if global exists (it should in React Native)
-if (typeof global !== 'undefined') {
-  global.App = App;
-  console.log('[Bundle] App component exposed via global.App');
-} else if (typeof window !== 'undefined') {
-  window.App = App;
-  console.log('[Bundle] App component exposed via window.App');
-}
+AppRegistry.registerComponent('testApp', () => App);

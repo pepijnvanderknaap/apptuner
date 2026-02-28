@@ -13,10 +13,44 @@ import {
   StatusBar,
   ActivityIndicator,
   SafeAreaView,
+  ScrollView,
   LogBox,
   AppState,
   Linking,
 } from 'react-native';
+
+// Error boundary to catch render errors from bundled apps
+class BundledAppErrorBoundary extends React.Component<
+  {children: React.ReactNode; onError: (msg: string) => void},
+  {error: string | null}
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = {error: null};
+  }
+  static getDerivedStateFromError(error: Error) {
+    return {error: error?.message || String(error)};
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    const msg = (error?.message || String(error)) + '\n\nComponent stack:' + info.componentStack;
+    this.props.onError(msg);
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <ScrollView style={{flex: 1, backgroundColor: '#1a1a1a'}} contentContainerStyle={{padding: 20}}>
+          <Text style={{color: '#ff6b6b', fontSize: 16, fontWeight: '600', marginBottom: 8}}>
+            Render Error
+          </Text>
+          <Text style={{color: '#ff6b6b', fontSize: 12, fontFamily: 'Courier'}}>
+            {this.state.error}
+          </Text>
+        </ScrollView>
+      );
+    }
+    return this.props.children;
+  }
+}
 import RNShake from 'react-native-shake';
 import KeepAwake from 'react-native-keep-awake';
 import QRCodeScanner from './components/QRCodeScanner';
@@ -39,8 +73,16 @@ LogBox.ignoreLogs([
 
   // NativeEventEmitter warnings
   'new NativeEventEmitter',
+  '`new NativeEventEmitter()',
   'EventEmitter.removeListener',
   'Sending `onAnimatedValueUpdate` with no listeners registered',
+
+  // Reanimated v3 strict-mode warnings (debug only — not shown in production)
+  '[Reanimated]',
+
+  // VisionCamera / CameraKit init messages
+  'AVCaptureDeviceInput',
+  'No camera device',
 
   // Module deprecations
   'Clipboard has been extracted',
@@ -50,10 +92,16 @@ LogBox.ignoreLogs([
   // Other common warnings
   'Remote debugger',
   'Require cycle',
+  'Non-serializable values were found in the navigation state',
 
   // React Native dev infrastructure trying to reach Metro packager — not relevant to AppTuner
   'Cannot connect to Metro',
 ]);
+
+// In debug builds, suppress all remaining warnings — they're dev-only noise and won't appear in production
+if (__DEV__) {
+  LogBox.ignoreAllLogs();
+}
 
 
 type AppState = 'scanning' | 'connecting' | 'connected' | 'error';
@@ -69,6 +117,7 @@ export default function App() {
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([]);
   const [showRecents, setShowRecents] = useState(false);
+  const [loadingRecents, setLoadingRecents] = useState(true);
   const [showShakeMenu, setShowShakeMenu] = useState(false);
 
   const connectionRef = useRef<RelayConnection | null>(null);
@@ -77,6 +126,18 @@ export default function App() {
   const unsubscribeStatusRef = useRef<(() => void) | null>(null);
   const unsubscribeBundleRef = useRef<(() => void) | null>(null);
   const shouldReconnectRef = useRef<boolean>(true);
+  // Refs for shake handler — avoids stale closure from re-registering listener on every state change
+  const appStateRef = useRef<AppState>('scanning');
+  const bundleLoadedRef = useRef<boolean>(false);
+
+  // Keep refs in sync so shake handler always sees current values without re-registering
+  useEffect(() => { appStateRef.current = appState; }, [appState]);
+  useEffect(() => { bundleLoadedRef.current = bundleLoaded; }, [bundleLoaded]);
+
+  // Diagnostic: log when bundleLoaded state actually changes
+  useEffect(() => {
+    console.log('[App] bundleLoaded state =', bundleLoaded);
+  }, [bundleLoaded]);
 
   // Handle deep links (when app is opened via apptuner:// URL)
   useEffect(() => {
@@ -106,6 +167,7 @@ export default function App() {
         setRecentProjects(projects);
         setShowRecents(true);
       }
+      setLoadingRecents(false);
     });
   }, []);
 
@@ -171,15 +233,17 @@ export default function App() {
     };
   }, []);
 
-  // Shake to show AppTuner menu (only when connected with bundle loaded)
+  // Shake to show AppTuner menu — registered once, reads state via refs to avoid stale closures.
+  // Note: in debug builds on RN New Architecture, shake fires via RCTShowDevMenuNotification.
+  // In release builds (TestFlight / App Store), the library swizzles UIWindow directly — always works.
   useEffect(() => {
     const subscription = RNShake.addListener(() => {
-      if (appState === 'connected' && bundleLoaded) {
+      if (appStateRef.current === 'connected' && bundleLoadedRef.current) {
         setShowShakeMenu(true);
       }
     });
     return () => subscription.remove();
-  }, [appState, bundleLoaded]);
+  }, []);
 
   // Handle QR code scan
   const handleQRScan = async (data: string) => {
@@ -259,7 +323,9 @@ export default function App() {
             projectId: sid,
             name: projectName || sid,
             lastConnected: Date.now(),
-          }).then(refreshRecentProjects);
+          }).then(refreshRecentProjects).catch(e => {
+            console.error('[App] saveProject failed:', e);
+          });
         } else if (status === 'error') {
           setAppState('error');
           setErrorMessage('Failed to connect to relay');
@@ -271,11 +337,13 @@ export default function App() {
         try {
           console.log('Received bundle update:', bundle.code.length, 'bytes');
 
-          // Execute the bundle
-          await executor.execute(bundle.code);
+          // Execute the bundle (synchronous — no await, avoids Hermes microtask drop)
+          executor.execute(bundle.code);
 
+          console.log('[App] ✅ execute() done — calling setBundleLoaded(true)');
           setBundleLoaded(true);
           setBundleVersion(v => v + 1); // Force re-render with new bundle
+          console.log('[App] ✅ setBundleLoaded(true) called');
 
           // Send acknowledgment
           connection.sendAck(true);
@@ -358,6 +426,11 @@ export default function App() {
           );
         }
 
+        // Don't show camera until we've checked AsyncStorage — prevents flash on relaunch
+        if (loadingRecents) {
+          return <View style={styles.container} />;
+        }
+
         if (showRecents && recentProjects.length > 0) {
           return (
             <RecentProjects
@@ -399,6 +472,11 @@ export default function App() {
             <ActivityIndicator size="large" color="#007aff" />
             <Text style={styles.connectingText}>Connecting to relay...</Text>
             <Text style={styles.sessionId}>Session: {sessionId}</Text>
+            <TouchableOpacity
+              style={[styles.skipButton, {marginTop: 32}]}
+              onPress={handleDisconnect}>
+              <Text style={styles.skipButtonText}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         );
 
@@ -409,15 +487,30 @@ export default function App() {
             <View style={styles.fullScreenContainer}>
               {/* Bundled app takes full screen */}
               {(() => {
-                try {
-                  const BundledApp = (global as any).App;
-                  if (!BundledApp) {
-                    return <Text style={{color: 'red'}}>Error: global.App not found</Text>;
-                  }
-                  return <BundledApp key={bundleVersion} />;
-                } catch (err) {
-                  return <Text style={{color: 'red'}}>Render error: {String(err)}</Text>;
+                let BundledApp = (global as any).App;
+                if (!BundledApp) {
+                  return <Text style={{color: 'red', padding: 20}}>Error: global.App not found</Text>;
                 }
+                // Unwrap ES module default export: {default: Component} → Component
+                if (typeof BundledApp === 'object' && BundledApp !== null && typeof BundledApp.default === 'function') {
+                  BundledApp = BundledApp.default;
+                }
+                // A valid React element type is: a function (component/class), OR an object with $$typeof
+                // (React.memo, React.forwardRef, React.lazy, Context.Provider, etc.)
+                const isValidType = typeof BundledApp === 'function' ||
+                  (typeof BundledApp === 'object' && BundledApp !== null && BundledApp.$$typeof != null);
+                if (!isValidType) {
+                  return <Text style={{color: 'red', padding: 20}}>Error: App is not a renderable component (type: {typeof BundledApp})</Text>;
+                }
+                return (
+                  <BundledAppErrorBoundary onError={(msg) => {
+                    setErrorMessage(msg);
+                    setErrorStack(msg);
+                    setShowErrorOverlay(true);
+                  }}>
+                    <BundledApp key={bundleVersion} />
+                  </BundledAppErrorBoundary>
+                );
               })()}
 
               {/* AppTuner shake menu */}

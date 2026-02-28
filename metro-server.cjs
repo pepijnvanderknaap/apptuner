@@ -7,6 +7,15 @@ const WebSocket = require('ws');
 const PORT = parseInt(process.env.METRO_PORT || '3031', 10);
 const wss = new WebSocket.Server({ port: PORT });
 
+// If the port is already in use, exit with a clear error so the CLI can detect it.
+wss.on('error', (err) => {
+  console.error(`[Metro Server] Server error on port ${PORT}:`, err.message);
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[Metro Server] Port ${PORT} already in use — exiting`);
+    process.exit(1);
+  }
+});
+
 console.log(`📦 Metro bundler server running on ws://localhost:${PORT}`);
 
 const clients = new Set();
@@ -50,12 +59,28 @@ function getSourceHash(projectPath) {
   }
 
   scanDir(path.resolve(projectPath));
+
+  // Also hash metro-bundle.cjs itself so any changes to the bundler invalidate the cache
+  try {
+    const bundlerPath = path.join(__dirname, 'metro-bundle.cjs');
+    const stat = fs.statSync(bundlerPath);
+    hash.update(`metro-bundle.cjs:${stat.mtimeMs}`);
+  } catch {
+    // ignore if not found
+  }
+
   return hash.digest('hex');
 }
 
 wss.on('connection', (ws) => {
   console.log('✅ Browser connected to Metro server');
   clients.add(ws);
+
+  // Prevent unhandled 'error' events from crashing the process when the
+  // client disconnects while a bundle is still in flight.
+  ws.on('error', (err) => {
+    console.warn('[Metro Server] WebSocket error (client likely disconnected):', err.message);
+  });
 
   ws.on('message', async (message) => {
     try {
@@ -102,11 +127,13 @@ wss.on('connection', (ws) => {
           // Cache the result with the source hash
           bundleCache.set(cacheKey, { bundle, sourceHash: currentHash });
 
-          ws.send(JSON.stringify({
-            type: 'bundle_ready',
-            code: bundle,
-            projectPath,
-          }));
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'bundle_ready',
+              code: bundle,
+              projectPath,
+            }));
+          }
 
           console.log(`✅ Bundle ready (${Math.round(bundle.length / 1024)} KB)`);
         } catch (error) {
@@ -117,11 +144,13 @@ wss.on('connection', (ws) => {
 
           // Send the error bundle as a regular bundle
           // The phone will execute it and show the error screen
-          ws.send(JSON.stringify({
-            type: 'bundle_ready',
-            code: errorBundle,
-            projectPath,
-          }));
+          if (ws.readyState === ws.OPEN) {
+            ws.send(JSON.stringify({
+              type: 'bundle_ready',
+              code: errorBundle,
+              projectPath,
+            }));
+          }
 
           console.log('📦 Error bundle sent to display error on device');
         }
@@ -230,7 +259,7 @@ function createErrorBundle(error) {
   // Create a bundle that renders an error screen
   // This will be executed on the phone just like a normal bundle
   const errorBundle = `
-(function() {
+(function(global) {
 // Error overlay bundle - match normal bundle structure
 console.log('[ErrorBundle] Starting...');
 
@@ -412,10 +441,19 @@ if (!React || !ReactNative) {
   console.log('[ErrorBundle] Set this.App');
 
   console.log('[ErrorBundle] Error overlay ready to display');
-}).call(this, (typeof global !== 'undefined' ? global : (typeof window !== 'undefined' ? window : this)));
+}.call(this, typeof globalThis !== 'undefined' ? globalThis : typeof global !== 'undefined' ? global : this));
 `;
 
   return errorBundle;
 }
+
+// Keep metro-server alive even if there's an unhandled promise rejection
+// (e.g. ws.send on a closed socket that slips through the readyState check)
+process.on('unhandledRejection', (reason) => {
+  console.error('[Metro Server] Unhandled rejection (keeping alive):', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Metro Server] Uncaught exception (keeping alive):', err.message);
+});
 
 console.log('Ready to bundle projects!');

@@ -224,6 +224,32 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Builds table (IPA re-signing jobs)
+CREATE TABLE public.builds (
+  id TEXT PRIMARY KEY, -- hex build ID from relay server
+  user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+  app_name TEXT NOT NULL,
+  bundle_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('signing', 'done', 'error')) DEFAULT 'signing',
+  error_message TEXT,
+  filename TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL,
+  completed_at TIMESTAMP WITH TIME ZONE
+);
+
+CREATE INDEX idx_builds_user_id ON public.builds(user_id);
+CREATE INDEX idx_builds_status ON public.builds(status);
+
+ALTER TABLE public.builds ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own builds"
+  ON public.builds FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Service role can manage all builds"
+  ON public.builds FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
 -- Comments for documentation
 COMMENT ON TABLE public.users IS 'User profiles extending Supabase auth.users';
 COMMENT ON TABLE public.subscriptions IS 'User subscription records linked to Stripe';

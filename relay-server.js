@@ -7,9 +7,24 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import http from 'http';
 import crypto from 'crypto';
+import { spawn } from 'child_process';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = process.env.PORT || 3000;
 const MAX_MESSAGE_SIZE = 50 * 1024 * 1024; // 50MB — large Expo bundles can exceed 10MB
+
+// Build pipeline configuration
+const BUILDS_DIR = process.env.BUILDS_DIR || '/tmp/apptuner-builds';
+const SHELL_IPA_PATH = process.env.SHELL_IPA_PATH || '/opt/apptuner/AppTunerMobile.ipa';
+const BUILD_TTL_MS = 24 * 60 * 60 * 1000; // Clean up builds after 24h
+
+// In-memory build store — keyed by buildId
+const builds = new Map();
 
 // Session storage (replaces Durable Objects)
 class RelaySession {
@@ -172,6 +187,120 @@ function getSessionIdFromPath(pathname) {
     return parts[1]; // ABC123
   }
   return null;
+}
+
+// --- Build pipeline ---
+
+async function handleCreateBuild(req, res) {
+  let body;
+  try {
+    body = JSON.parse(await readBody(req));
+  } catch {
+    return jsonResponse(res, 400, { error: 'Invalid JSON' });
+  }
+
+  const { userId, p12Base64, p12Password, mobileprovisionBase64, appName, bundleId, iconBase64 } = body;
+
+  if (!p12Base64 || !p12Password || !mobileprovisionBase64 || !appName || !bundleId) {
+    return jsonResponse(res, 400, { error: 'Missing required fields: p12Base64, p12Password, mobileprovisionBase64, appName, bundleId' });
+  }
+
+  if (!fs.existsSync(SHELL_IPA_PATH)) {
+    return jsonResponse(res, 503, { error: 'Build service not available — shell IPA not found on server. Contact support@apptuner.io.' });
+  }
+
+  const buildId = crypto.randomBytes(8).toString('hex');
+  const buildDir = path.join(BUILDS_DIR, buildId);
+  fs.mkdirSync(buildDir, { recursive: true });
+
+  // Write uploaded cert files to disk (will be deleted after signing)
+  const p12Path = path.join(buildDir, 'cert.p12');
+  const provisionPath = path.join(buildDir, 'app.mobileprovision');
+  const iconPath = iconBase64 ? path.join(buildDir, 'icon.png') : '';
+
+  fs.writeFileSync(p12Path, Buffer.from(p12Base64, 'base64'));
+  fs.writeFileSync(provisionPath, Buffer.from(mobileprovisionBase64, 'base64'));
+  if (iconBase64) fs.writeFileSync(iconPath, Buffer.from(iconBase64, 'base64'));
+
+  const safeAppName = appName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const outputIpa = path.join(buildDir, `${safeAppName}.ipa`);
+
+  builds.set(buildId, {
+    id: buildId,
+    userId: userId || 'anonymous',
+    appName,
+    bundleId,
+    status: 'signing',
+    createdAt: Date.now(),
+    outputIpa,
+    filename: `${safeAppName}.ipa`,
+  });
+
+  // Spawn signing script in background
+  const signScript = path.join(__dirname, 'sign-ipa.sh');
+  const proc = spawn('bash', [
+    signScript, p12Path, p12Password, provisionPath,
+    SHELL_IPA_PATH, appName, bundleId, outputIpa, iconPath,
+  ], { stdio: ['ignore', 'pipe', 'pipe'] });
+
+  let stderr = '';
+  proc.stdout.on('data', d => console.log(`[build ${buildId}] ${d.toString().trim()}`));
+  proc.stderr.on('data', d => { stderr += d.toString(); });
+
+  proc.on('close', code => {
+    const build = builds.get(buildId);
+    if (!build) return;
+    if (code === 0 && fs.existsSync(outputIpa)) {
+      build.status = 'done';
+      console.log(`[build ${buildId}] IPA ready: ${outputIpa}`);
+    } else {
+      build.status = 'error';
+      build.error = stderr.trim() || `Sign script exited with code ${code}`;
+      console.error(`[build ${buildId}] Failed: ${build.error}`);
+    }
+    // Securely delete cert files regardless of outcome
+    for (const f of [p12Path, provisionPath, iconPath].filter(Boolean)) {
+      try { fs.rmSync(f); } catch {}
+    }
+  });
+
+  jsonResponse(res, 200, { buildId, status: 'signing' });
+}
+
+async function handleGetBuild(req, res, buildId) {
+  const build = builds.get(buildId);
+  if (!build) return jsonResponse(res, 404, { error: 'Build not found' });
+
+  const resp = {
+    buildId: build.id,
+    appName: build.appName,
+    bundleId: build.bundleId,
+    status: build.status,
+    createdAt: build.createdAt,
+  };
+  if (build.status === 'done') {
+    resp.downloadUrl = `/api/builds/${buildId}/download`;
+    resp.filename = build.filename;
+  }
+  if (build.status === 'error') resp.error = build.error;
+
+  jsonResponse(res, 200, resp);
+}
+
+function handleDownloadBuild(req, res, buildId) {
+  const build = builds.get(buildId);
+  if (!build) return jsonResponse(res, 404, { error: 'Build not found' });
+  if (build.status !== 'done') return jsonResponse(res, 400, { error: `Build not ready (status: ${build.status})` });
+  if (!fs.existsSync(build.outputIpa)) return jsonResponse(res, 404, { error: 'IPA file missing' });
+
+  const stat = fs.statSync(build.outputIpa);
+  res.writeHead(200, {
+    'Content-Type': 'application/octet-stream',
+    'Content-Disposition': `attachment; filename="${build.filename}"`,
+    'Content-Length': stat.size,
+    'Access-Control-Allow-Origin': '*',
+  });
+  fs.createReadStream(build.outputIpa).pipe(res);
 }
 
 // --- Stripe / payment helpers ---
@@ -381,7 +510,7 @@ const server = http.createServer(async (req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     });
     return res.end();
@@ -412,6 +541,40 @@ const server = http.createServer(async (req, res) => {
     } catch (err) {
       console.error('Webhook error:', err);
       jsonResponse(res, 500, { error: 'Internal server error' });
+    }
+    return;
+  }
+
+  // Build pipeline: create build
+  if (req.method === 'POST' && req.url === '/api/builds') {
+    try {
+      await handleCreateBuild(req, res);
+    } catch (err) {
+      console.error('Build create error:', err);
+      jsonResponse(res, 500, { error: 'Internal server error' });
+    }
+    return;
+  }
+
+  // Build pipeline: get status or download
+  if (req.url.startsWith('/api/builds/')) {
+    const parts = req.url.split('/').filter(Boolean);
+    // parts: ['api', 'builds', '<buildId>'] or ['api', 'builds', '<buildId>', 'download']
+    const buildId = parts[2];
+    if (!buildId) { res.writeHead(400); res.end('Missing buildId'); return; }
+
+    if (parts[3] === 'download') {
+      try {
+        handleDownloadBuild(req, res, buildId);
+      } catch (err) {
+        jsonResponse(res, 500, { error: 'Internal server error' });
+      }
+    } else {
+      try {
+        await handleGetBuild(req, res, buildId);
+      } catch (err) {
+        jsonResponse(res, 500, { error: 'Internal server error' });
+      }
     }
     return;
   }
@@ -460,6 +623,20 @@ wss.on('connection', (ws, req) => {
   // Handle connection
   session.handleConnection(ws, clientType);
 });
+
+// Cleanup old builds once per hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [buildId, build] of builds.entries()) {
+    if (now - build.createdAt > BUILD_TTL_MS) {
+      // Delete build directory
+      const buildDir = path.join(BUILDS_DIR, buildId);
+      try { fs.rmSync(buildDir, { recursive: true, force: true }); } catch {}
+      builds.delete(buildId);
+      console.log(`[builds] Cleaned up expired build ${buildId}`);
+    }
+  }
+}, 60 * 60 * 1000);
 
 // Cleanup inactive sessions every 5 minutes
 setInterval(() => {

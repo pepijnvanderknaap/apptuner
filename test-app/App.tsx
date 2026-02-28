@@ -1,74 +1,42 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
-// Temporarily remove Image to test Metro bundle without assets
-// const logoImage = require('./assets/logo.png');
-
-// console.log('[App] logoImage:', logoImage);
-// console.log('[App] logoImage type:', typeof logoImage);
-
 export default function App() {
-  const [count, setCount] = useState(0);
+  const [score, setScore] = useState(0);
+  const [streak, setStreak] = useState(0);
 
   useEffect(() => {
-    console.log('🚀 App mounted! Console logging is working!');
-    console.log('✅ If you see this in the desktop console panel, everything is working!');
+    console.log('🌈🌈🌈 MASSIVE REDESIGN LOADED AT ' + new Date().toLocaleTimeString() + ' 🌈🌈🌈');
   }, []);
 
-  console.log('🎯 App component rendered with count:', count);
-
-  const handleIncrement = () => {
-    console.log('📈 Incrementing counter from', count, 'to', count + 1);
-    setCount(count + 1);
+  const handleTap = () => {
+    setScore(s => s + 1);
+    setStreak(s => s + 1);
   };
 
   const handleReset = () => {
-    console.warn('⚠️ Resetting counter to 0');
-    setCount(0);
+    setScore(0);
+    setStreak(0);
   };
-
-  // Debug: Check what logoImage contains
-  // useEffect(() => {
-  //   console.log('[App] Logo image source:', JSON.stringify(logoImage));
-  // }, []);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.emoji}>🎉</Text>
-      <Text style={styles.title}>CODE AUDIT PASSED! ✨</Text>
+      <Text style={styles.emoji}>🌈</Text>
+      <Text style={styles.title}>LIVE UPDATE! IT WORKS!</Text>
+      <Text style={styles.subtitle}>Hot reload via AppTuner relay ⚡️</Text>
 
-      <Text style={styles.subtitle}>
-        Our changes work perfectly! No errors, no loops! 🚀
-      </Text>
-
-      <View style={styles.counterBox}>
-        <Text style={styles.counterLabel}>Counter:</Text>
-        <Text style={styles.counterValue}>{count}</Text>
+      <View style={styles.scoreBox}>
+        <Text style={styles.scoreLabel}>SCORE</Text>
+        <Text style={styles.scoreValue}>{score}</Text>
+        <Text style={styles.streakText}>🔥 Streak: {streak}</Text>
       </View>
 
-      <TouchableOpacity
-        style={styles.button}
-        onPress={handleIncrement}
-      >
-        <Text style={styles.buttonText}>Hit me!</Text>
+      <TouchableOpacity style={styles.tapButton} onPress={handleTap}>
+        <Text style={styles.tapButtonText}>TAP ME!</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.button, styles.resetButton]}
-        onPress={handleReset}
-      >
-        <Text style={styles.buttonText}>Resetter</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: '#34C759' }]}
-        onPress={() => {
-          console.info('ℹ️ Testing different log types');
-          console.error('❌ This is a test error (not real!)');
-          console.debug('🐛 Debug info: count =', count);
-        }}
-      >
-        <Text style={styles.buttonText}>Test Console Logs</Text>
+      <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
+        <Text style={styles.resetButtonText}>Reset</Text>
       </TouchableOpacity>
     </View>
   );
@@ -77,62 +45,83 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#FF6B35',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   emoji: {
-    fontSize: 80,
-    marginBottom: 20,
+    fontSize: 90,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '900',
     color: '#fff',
-    marginBottom: 20,
+    marginBottom: 8,
     textAlign: 'center',
+    letterSpacing: 1,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#999',
-    textAlign: 'center',
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.8)',
     marginBottom: 40,
-    paddingHorizontal: 20,
+    textAlign: 'center',
   },
-  counterBox: {
-    backgroundColor: '#2a2a2a',
-    borderRadius: 16,
+  scoreBox: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
     padding: 30,
     marginBottom: 30,
-    minWidth: 200,
+    minWidth: 220,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
   },
-  counterLabel: {
+  scoreLabel: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FF6B35',
+    letterSpacing: 3,
+    marginBottom: 8,
+  },
+  scoreValue: {
+    fontSize: 80,
+    fontWeight: '900',
+    color: '#1a1a1a',
+    lineHeight: 88,
+  },
+  streakText: {
     fontSize: 18,
-    color: '#999',
-    marginBottom: 10,
+    color: '#888',
+    marginTop: 8,
   },
-  counterValue: {
-    fontSize: 64,
-    fontWeight: 'bold',
-    color: '#007AFF',
+  tapButton: {
+    backgroundColor: '#fff',
+    paddingHorizontal: 60,
+    paddingVertical: 20,
+    borderRadius: 50,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
   },
-  button: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 40,
-    paddingVertical: 16,
-    borderRadius: 12,
-    marginBottom: 15,
-    minWidth: 200,
+  tapButtonText: {
+    color: '#FF6B35',
+    fontSize: 22,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
   resetButton: {
-    backgroundColor: '#FF3B30',
+    paddingHorizontal: 30,
+    paddingVertical: 12,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
+  resetButtonText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 16,
     fontWeight: '600',
-    textAlign: 'center',
   },
 });

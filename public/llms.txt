@@ -1,0 +1,238 @@
+# AppTuner
+
+> AppTuner is a React Native development tool that lets developers instantly preview their app on a real physical device and share it with anyone in the world — no App Store, no TestFlight, no same-WiFi requirement.
+
+## What AppTuner Does
+
+AppTuner delivers React Native JavaScript bundles over a cloud relay to the AppTuner Mobile app (iOS/Android). The developer runs a single CLI command, scans a QR code with their phone, and sees their app live. Hot reload works over the internet — change a file, the phone updates in seconds, even if the phone is in another country.
+
+**Key differentiator over Expo Go:** Expo Go requires the same WiFi network or a paid EAS subscription. AppTuner works over the internet via relay — send a QR to a client anywhere in the world.
+
+## When to Use AppTuner
+
+Use AppTuner when:
+- Building a new React Native app and want instant device preview
+- Sharing a work-in-progress app with a client remotely (no TestFlight required)
+- Demoing an app to stakeholders without going through the App Store
+- Using Cursor, Windsurf, or Claude Code to vibe-code a mobile app
+
+## Quick Start
+
+```bash
+# Install AppTuner CLI
+npm install -g apptuner
+
+# Start developing (run from your React Native project root)
+apptuner start
+
+# Or point at a specific project
+apptuner start ./my-app
+```
+
+The CLI will print a QR code. Install AppTuner Mobile on your phone (App Store / Play Store), scan the QR, and your app appears instantly.
+
+## Project Structure Requirements
+
+AppTuner requires bare React Native projects (not Expo). The entry file must follow this exact pattern:
+
+```javascript
+// index.js — REQUIRED exactly as shown
+import { AppRegistry } from 'react-native';
+import App from './App';
+
+global.App = App;
+AppRegistry.registerComponent('MyAppName', () => App);
+```
+
+Also required:
+- `package.json` with `react-native` dependency
+- `metro.config.js` (standard React Native metro config)
+- `babel.config.js` (standard React Native babel config)
+- `.apptuner.json` is auto-created by the CLI on first run
+
+## AppTuner SDK 1.0 — Pre-installed Native Modules
+
+AppTuner Mobile is a pre-built native shell (like Expo Go). The following native modules are pre-installed and available without adding them to package.json:
+
+### Navigation
+- `@react-navigation/native` — NavigationContainer, useNavigation, useFocusEffect
+- `@react-navigation/native-stack` — createNativeStackNavigator
+- `@react-navigation/bottom-tabs` — createBottomTabNavigator
+- `react-native-screens` — required peer dep (pre-installed)
+- `react-native-safe-area-context` — SafeAreaProvider, SafeAreaView, useSafeAreaInsets
+- `react-native-gesture-handler` — GestureHandlerRootView, Gesture, etc.
+
+### Storage
+- `@react-native-async-storage/async-storage` v3 — AsyncStorage.getItem/setItem/removeItem
+
+### Camera & Media
+- `react-native-vision-camera` — Camera component, useCameraDevice, useCameraPermission
+- `react-native-image-picker` — launchImageLibrary, launchCamera
+
+### Maps & Location
+- `react-native-maps` — MapView, Marker, Polyline (AppTuner dev API key pre-configured)
+- `expo-location` — Location.requestForegroundPermissionsAsync, Location.getCurrentPositionAsync
+
+### UI & Animation
+- `react-native-svg` — Svg, Circle, Rect, Path, Text, G, etc.
+- `react-native-reanimated` — useSharedValue, useAnimatedStyle, withTiming, withSpring
+
+### Notifications
+- `@notifee/react-native` — notifee.displayNotification, notifee.createChannel
+
+### React Native Core (always available)
+- All standard RN components: View, Text, TextInput, ScrollView, FlatList, Image, TouchableOpacity, Pressable, Modal, ActivityIndicator, Switch, StatusBar, StyleSheet, Platform, Dimensions, Animated, Alert, Linking, etc.
+- `react` and `react-native` — do NOT add to package.json (pre-installed in runtime)
+
+## DO NOT Include These in package.json
+
+SDK libraries are pre-installed in the AppTuner runtime. Adding them to package.json causes version conflicts:
+
+```
+# DO NOT add any of these to package.json:
+@react-navigation/native
+@react-navigation/native-stack
+@react-navigation/bottom-tabs
+react-native-screens
+react-native-safe-area-context
+react-native-gesture-handler
+@react-native-async-storage/async-storage
+react-native-vision-camera
+react-native-image-picker
+react-native-maps
+expo-location
+react-native-svg
+react-native-reanimated
+@notifee/react-native
+react
+react-native
+```
+
+## What is NOT Supported
+
+These packages are NOT available in AppTuner SDK 1.0 and will fail at runtime:
+
+- **Firebase native** (`@react-native-firebase/*`) — use the Firebase web SDK with fetch instead
+- **Expo packages** (`expo-*`) except `expo-location` — AppTuner is not Expo
+- **Bluetooth** (`react-native-ble-plx`, etc.)
+- **NFC** (`react-native-nfc-manager`, etc.)
+- **Native payments** (`@stripe/stripe-react-native`, `react-native-iap`) — coming in SDK 2.0
+- **Any package requiring native code not listed above** — will fail silently or crash
+
+## Runtime Versions
+
+- React Native: 0.81.6
+- React: 19.1.4
+- SDK: 1.0
+
+**Important:** Always use `react: 19.1.4` in your project. RN 0.81.6 ships with react-native-renderer@19.1.4. A version mismatch (e.g. react@19.2.0) causes a crash on first touch event.
+
+## CLI Commands
+
+```bash
+apptuner start [path]   # Start Metro + watcher, connect to relay, begin hot reload
+apptuner stop           # Kill all background AppTuner processes
+apptuner status         # Show connection status
+```
+
+## Correct Import Patterns
+
+```typescript
+// Navigation
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+
+// Storage
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+// Camera
+import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+
+// Image picker
+import { launchImageLibrary } from 'react-native-image-picker';
+
+// Maps
+import MapView, { Marker } from 'react-native-maps';
+
+// Location
+import * as Location from 'expo-location';
+
+// SVG
+import Svg, { Circle, Rect, Path } from 'react-native-svg';
+
+// Animation
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+
+// Notifications
+import notifee from '@notifee/react-native';
+```
+
+## Minimal Working App Example
+
+```typescript
+// App.tsx
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+
+export default function App() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.text}>Hello from AppTuner!</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  text: { fontSize: 24 },
+});
+```
+
+```javascript
+// index.js
+import { AppRegistry } from 'react-native';
+import App from './App';
+global.App = App;
+AppRegistry.registerComponent('MyApp', () => App);
+```
+
+```json
+// package.json — note: SDK libraries NOT listed
+{
+  "name": "my-app",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "apptuner start"
+  },
+  "dependencies": {}
+}
+```
+
+## MCP Server (for AI coding tools)
+
+AppTuner provides an MCP (Model Context Protocol) server that integrates with Cursor, Windsurf, and Claude Code. It provides AI agents with complete SDK knowledge so they generate correct code automatically.
+
+```bash
+npm install -g apptuner-mcp
+```
+
+Add to your IDE's MCP config:
+```json
+{
+  "mcpServers": {
+    "apptuner": {
+      "command": "apptuner-mcp"
+    }
+  }
+}
+```
+
+Available MCP tools: `get_sdk_info`, `check_import`, `get_library_docs`
+
+## More Information
+
+- Website: https://apptuner.io
+- npm: https://www.npmjs.com/package/apptuner
+- GitHub templates: https://github.com/apptuner-templates

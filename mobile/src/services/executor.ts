@@ -38,7 +38,7 @@ export class BundleExecutor {
   /**
    * Execute a JavaScript bundle
    */
-  async execute(bundleCode: string): Promise<void> {
+  execute(bundleCode: string): void {
     try {
       console.log('[Executor] Executing bundle...');
 
@@ -67,45 +67,92 @@ export class BundleExecutor {
 
         console.log('[Executor] Set global.React, global.ReactNative (with patched NativeEventEmitter)');
 
-        // Wrap eval in try/catch to handle any remaining NativeEventEmitter errors gracefully
+        // CRITICAL: Clear Metro's module cache BEFORE eval.
+        // This ensures the bundle's __d factories replace old ones cleanly.
+        // We do NOT clear again after eval — so a second __r(0) call below
+        // just returns the already-cached result without re-running factories.
+        // This prevents the "two React instances" problem that caused
+        // "Objects are not valid as a React child" with a clear-AFTER approach.
+        if ((global as any).__r && (global as any).__r.c) {
+          console.log('[Executor] 🔥 Clearing Metro module cache before eval');
+          const cacheSize = (global as any).__r.c.size;
+          (global as any).__r.c.clear();
+          console.log(`[Executor] ✅ Cleared ${cacheSize} cached modules`);
+        }
+
+        // Patch TurboModuleRegistry BEFORE eval so missing native modules get
+        // stubs from the very first require (covers RNHapticFeedback, etc.)
+        const TRM = (global as any).TurboModuleRegistry;
+        if (TRM && typeof TRM.getEnforcing === 'function') {
+          const origGetEnforcing = TRM.getEnforcing.bind(TRM);
+          const origGet = TRM.get ? TRM.get.bind(TRM) : null;
+          const makeStub = (name: string) => new Proxy({} as any, {
+            get(_: any, prop: string) {
+              if (prop === 'then') return undefined; // not a Promise
+              if (prop === '__esModule') return false;
+              return (..._args: any[]) => {
+                console.warn(`[AppTuner] Stub: ${name}.${prop}() called`);
+                return null;
+              };
+            },
+          });
+          TRM.getEnforcing = function(name: string) {
+            try { return origGetEnforcing(name); } catch (_e) {
+              console.warn(`[AppTuner] Missing native module "${name}" — using stub`);
+              return makeStub(name);
+            }
+          };
+          if (origGet) {
+            TRM.get = function(name: string) {
+              const result = origGet(name);
+              return result ?? makeStub(name);
+            };
+          }
+          console.log('[Executor] TurboModuleRegistry patched for missing native modules');
+        }
+
+        // eval the bundle — the Metro IIFE registers __d factories AND calls
+        // __r(0) internally at the end (setting global.App via AppRegistry interception).
+        console.log('[Executor] Running eval — bundle will call __r(0) internally');
         try {
           // Use indirect eval to execute the bundle in global scope
-          // Metro bundles are self-contained IIFEs that will call themselves
           // eslint-disable-next-line no-eval
           (0, eval)(bundleCode);
         } catch (evalError) {
-          // If it's a NativeEventEmitter error, log warning but continue
+          // Some errors during eval are non-fatal (polyfill conflicts on re-execution)
           const errorMsg = evalError instanceof Error ? evalError.message : String(evalError);
-          if (errorMsg.includes('NativeEventEmitter')) {
-            console.warn('[Executor] ⚠️ NativeEventEmitter error during bundle load (non-fatal):', errorMsg);
-            // Continue execution - the error happened during module definition, not during app execution
+          if (
+            errorMsg.includes('NativeEventEmitter') ||
+            errorMsg.includes('not writable') ||
+            errorMsg.includes('Cannot assign to read only') ||
+            errorMsg.includes('read-only')
+          ) {
+            console.warn('[Executor] ⚠️ Non-fatal eval error (polyfill conflict on re-run):', errorMsg);
+            // Continue - __d registrations and __r(0) likely succeeded before the error
           } else {
             // Re-throw other errors
             throw evalError;
           }
         }
 
-        // Clean up (optional - Metro bundles may need these to stay)
-        // delete (global as any).React;
-        // delete (global as any).ReactNative;
-
-        // Metro bundles define modules but don't auto-execute the entry point
-        // We need to call __r(0) to execute the entry point module (index.js)
+        // Fallback: if the bundle didn't call __r(0) itself (some Metro versions don't),
+        // call it now. Since we did NOT clear __r.c after eval, if the bundle already
+        // called __r(0), this just returns the cached result — no second React instance.
         console.log('[Executor] Metro bundle loaded, executing entry point...');
         console.log('[Executor] global.__r exists:', typeof (global as any).__r);
 
-        // CRITICAL: Clear Metro's module cache BEFORE executing entry point
-        // Metro caches module exports in __r.c Map from previous bundle execution
-        if ((global as any).__r && (global as any).__r.c) {
-          console.log('[Executor] 🔥 Clearing Metro module cache from previous bundle');
-          const cacheSize = (global as any).__r.c.size;
-          (global as any).__r.c.clear();
-          console.log(`[Executor] ✅ Cleared ${cacheSize} cached modules`);
-        }
-
         if (typeof (global as any).__r === 'function') {
-          console.log('[Executor] Calling __r(0) to execute entry point');
-          (global as any).__r(0);
+          console.log('[Executor] Calling __r(0) — returns cached result if bundle already ran it');
+          try {
+            (global as any).__r(0);
+          } catch (rError) {
+            const rMsg = rError instanceof Error ? rError.message : String(rError);
+            if ((global as any).App) {
+              console.warn('[Executor] ⚠️ Non-fatal error during __r(0) (App already captured):', rMsg);
+            } else {
+              throw rError;
+            }
+          }
         } else {
           console.warn('[Executor] ⚠️  global.__r not found, cannot execute entry point');
         }
@@ -148,11 +195,11 @@ export class BundleExecutor {
   /**
    * Re-execute the last bundle (for hot reload)
    */
-  async reexecute(): Promise<void> {
+  reexecute(): void {
     if (!this.lastBundle) {
       throw new Error('No bundle to re-execute');
     }
-    return this.execute(this.lastBundle);
+    this.execute(this.lastBundle);
   }
 
   /**

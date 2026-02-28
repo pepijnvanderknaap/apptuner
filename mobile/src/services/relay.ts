@@ -28,6 +28,13 @@ export class RelayConnection {
   private latency = 0;
   private reconnectTimeout: NodeJS.Timeout | null = null;
 
+  // Chunk reassembly state for large bundles
+  private chunkBuffer: {
+    totalChunks: number;
+    chunks: {[index: number]: string};
+    received: number;
+  } | null = null;
+
   // Original console (to bypass interceptor for relay errors)
   private originalConsole?: {
     error: typeof console.error;
@@ -203,6 +210,41 @@ export class RelayConnection {
             console.error('[Relay] Error in bundle handler:', error);
           }
         });
+        break;
+
+      case 'bundle_start':
+        console.log(`[Relay] Chunked bundle incoming: ${message.totalChunks} chunks`);
+        this.chunkBuffer = {
+          totalChunks: message.totalChunks,
+          chunks: {},
+          received: 0,
+        };
+        break;
+
+      case 'bundle_chunk':
+        if (this.chunkBuffer) {
+          this.chunkBuffer.chunks[message.index] = message.data;
+          this.chunkBuffer.received++;
+          console.log(`[Relay] Chunk ${message.index + 1}/${this.chunkBuffer.totalChunks}`);
+
+          if (this.chunkBuffer.received === this.chunkBuffer.totalChunks) {
+            // All chunks received — reassemble and dispatch
+            const code = Array.from(
+              {length: this.chunkBuffer.totalChunks},
+              (_, i) => this.chunkBuffer!.chunks[i],
+            ).join('');
+            console.log(`[Relay] Bundle reassembled: ${code.length} bytes`);
+            const assembled = {code};
+            this.chunkBuffer = null;
+            this.bundleHandlers.forEach(handler => {
+              try {
+                handler(assembled);
+              } catch (error) {
+                console.error('[Relay] Error in bundle handler:', error);
+              }
+            });
+          }
+        }
         break;
 
       case 'pong':

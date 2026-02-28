@@ -1,0 +1,35 @@
+{
+  "name": "apptuner-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for AppTuner — gives AI coding tools (Cursor, Windsurf, Claude Code) full knowledge of the AppTuner SDK 1.0 native module library",
+  "type": "module",
+  "bin": {
+    "apptuner-mcp": "mcp.js"
+  },
+  "files": [
+    "mcp.js",
+    "mcp.js.map"
+  ],
+  "keywords": [
+    "apptuner",
+    "mcp",
+    "model-context-protocol",
+    "react-native",
+    "mobile",
+    "cursor",
+    "windsurf",
+    "claude",
+    "ai",
+    "sdk"
+  ],
+  "author": "Pepijn van der Knaap",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pepijnvanderknaap/apptuner.git"
+  },
+  "homepage": "https://apptuner.io",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

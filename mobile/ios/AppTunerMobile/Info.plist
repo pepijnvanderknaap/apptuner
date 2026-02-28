@@ -2,12 +2,12 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleIconName</key>
+	<string>AppIcon</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
 	<string>AppTuner</string>
-	<key>NSCameraUsageDescription</key>
-	<string>AppTuner needs access to your camera to scan QR codes for connecting to your development server.</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -22,6 +22,17 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.apptuner.deeplink</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>apptuner</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
@@ -37,8 +48,20 @@
 			</dict>
 		</dict>
 	</dict>
+	<key>NSCameraUsageDescription</key>
+	<string>AppTuner uses your camera to scan QR codes and to power camera features in previewed apps.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>AppTuner needs microphone access for video recording features in previewed apps.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>AppTuner needs photo library access for image features in previewed apps.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>AppTuner needs permission to save photos for features in previewed apps.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string>AppTuner needs location access for map and location features in previewed apps.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>AppTuner needs location access for map and location features in previewed apps.</string>
+	<key>RCTNewArchEnabled</key>
+	<true/>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
@@ -53,16 +76,5 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
-	<key>CFBundleURLTypes</key>
-	<array>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>apptuner</string>
-			</array>
-			<key>CFBundleURLName</key>
-			<string>com.apptuner.deeplink</string>
-		</dict>
-	</array>
 </dict>
 </plist>

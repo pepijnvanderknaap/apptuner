@@ -47,45 +47,50 @@ export default function RecentProjects({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <View style={styles.header}>
         <Text style={styles.title}>AppTuner</Text>
         <Text style={styles.subtitle}>Recent Projects</Text>
+      </View>
 
-        <FlatList
-          data={projects}
-          keyExtractor={item => item.projectId}
-          style={styles.list}
-          renderItem={({item}) => (
-            <TouchableOpacity
-              style={styles.projectRow}
-              onPress={() => onConnect(item.projectId)}
-              activeOpacity={0.7}>
-              <View style={styles.projectInfo}>
-                <Text style={styles.projectName}>{item.name || item.projectId}</Text>
-                <Text style={styles.projectMeta}>
-                  {item.projectId} · {formatLastConnected(item.lastConnected)}
-                </Text>
+      <FlatList
+        data={projects}
+        keyExtractor={item => item.projectId}
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        renderItem={({item}) => (
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => onConnect(item.projectId)}
+            activeOpacity={0.7}>
+            <View style={styles.cardLeft}>
+              <Text style={styles.projectName} numberOfLines={1}>
+                {item.name || item.projectId}
+              </Text>
+              <Text style={styles.projectMeta} numberOfLines={1}>
+                <Text style={styles.projectCode}>{item.projectId}</Text>
+                {'  ·  '}
+                {formatLastConnected(item.lastConnected)}
+              </Text>
+            </View>
+            <View style={styles.cardRight}>
+              <View style={styles.connectBadge}>
+                <Text style={styles.connectBadgeText}>Connect →</Text>
               </View>
-              <View style={styles.projectActions}>
-                <View style={styles.connectBadge}>
-                  <Text style={styles.connectBadgeText}>Connect →</Text>
-                </View>
-                <TouchableOpacity
-                  style={styles.deleteButton}
-                  hitSlop={{top: 8, bottom: 8, left: 8, right: 8}}
-                  onPress={() => handleDelete(item.projectId)}>
-                  <Text style={styles.deleteButtonText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          )}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
+              <TouchableOpacity
+                style={styles.deleteButton}
+                hitSlop={{top: 12, bottom: 12, left: 12, right: 12}}
+                onPress={() => handleDelete(item.projectId)}>
+                <Text style={styles.deleteButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        )}
+      />
 
+      <View style={styles.footer}>
         <TouchableOpacity style={styles.scanButton} onPress={onScanNew}>
           <Text style={styles.scanButtonText}>+ Scan New Project</Text>
         </TouchableOpacity>
-
         <Text style={styles.shakeHint}>Shake to disconnect once connected</Text>
       </View>
     </SafeAreaView>
@@ -95,93 +100,113 @@ export default function RecentProjects({
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#f2f2f7',
   },
-  container: {
-    flex: 1,
-    paddingHorizontal: 24,
+  header: {
+    paddingHorizontal: 20,
     paddingTop: 16,
+    paddingBottom: 16,
+    backgroundColor: '#f2f2f7',
   },
   title: {
-    fontSize: 32,
-    fontWeight: '600',
+    fontSize: 34,
+    fontWeight: '700',
     color: '#1d1d1f',
-    marginBottom: 4,
+    letterSpacing: -0.5,
+    marginBottom: 2,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 15,
     color: '#86868b',
-    marginBottom: 32,
+    fontWeight: '400',
   },
   list: {
     flex: 1,
   },
-  projectRow: {
+  listContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+  },
+  card: {
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginBottom: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 16,
     justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 1},
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  projectInfo: {
+  cardLeft: {
     flex: 1,
     marginRight: 12,
   },
-  projectName: {
-    fontSize: 17,
-    fontWeight: '500',
-    color: '#1d1d1f',
-    marginBottom: 2,
-  },
-  projectMeta: {
-    fontSize: 13,
-    color: '#86868b',
-    fontFamily: 'Courier',
-  },
-  projectActions: {
+  cardRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
+  },
+  projectName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1d1d1f',
+    marginBottom: 3,
+  },
+  projectMeta: {
+    fontSize: 12,
+    color: '#aeaeb2',
+  },
+  projectCode: {
+    fontFamily: 'Courier',
+    fontSize: 12,
+    color: '#aeaeb2',
   },
   connectBadge: {
     backgroundColor: '#007aff',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 10,
   },
   connectBadgeText: {
     color: '#ffffff',
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   deleteButton: {
-    padding: 4,
+    padding: 2,
   },
   deleteButtonText: {
-    color: '#86868b',
-    fontSize: 16,
+    color: '#c7c7cc',
+    fontSize: 15,
   },
-  separator: {
-    height: 1,
-    backgroundColor: '#f2f2f7',
+  footer: {
+    paddingHorizontal: 16,
+    paddingBottom: 8,
   },
   scanButton: {
-    marginVertical: 24,
+    marginTop: 4,
+    marginBottom: 14,
     paddingVertical: 14,
-    paddingHorizontal: 32,
-    backgroundColor: '#f5f5f7',
-    borderRadius: 12,
+    borderRadius: 14,
     alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#007aff',
+    backgroundColor: '#ffffff',
   },
   scanButtonText: {
     fontSize: 16,
     color: '#007aff',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   shakeHint: {
-    fontSize: 14,
-    color: '#86868b',
+    fontSize: 13,
+    color: '#aeaeb2',
     textAlign: 'center',
-    marginTop: 12,
     marginBottom: 8,
   },
 });

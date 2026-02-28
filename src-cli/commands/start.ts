@@ -20,7 +20,7 @@ interface StartOptions {
 function findFreePort(start: number): Promise<number> {
   return new Promise((resolve) => {
     const server = net.createServer();
-    server.listen(start, '127.0.0.1', () => {
+    server.listen(start, () => {
       const port = (server.address() as net.AddressInfo).port;
       server.close(() => resolve(port));
     });
@@ -66,11 +66,40 @@ class RelayAdapter {
       console.warn(chalk.yellow('⚠️  Cannot send bundle - relay not connected'));
       return;
     }
+
+    // iOS WebSocket has a ~1MB message size limit — chunk large bundles
+    const CHUNK_SIZE = 512 * 1024; // 512KB per chunk
+    if (bundleCode.length <= CHUNK_SIZE) {
+      // Small bundle — send as single message (backward compatible)
+      this.ws.send(JSON.stringify({
+        type: 'bundle_update',
+        payload: { code: bundleCode },
+        timestamp: Date.now(),
+      }));
+      return;
+    }
+
+    // Large bundle — split into chunks
+    const totalChunks = Math.ceil(bundleCode.length / CHUNK_SIZE);
+    console.log(chalk.gray(`📦 Sending in ${totalChunks} chunks (${Math.round(bundleCode.length / 1024)}KB total)...`));
+
     this.ws.send(JSON.stringify({
-      type: 'bundle_update',
-      payload: { code: bundleCode },
+      type: 'bundle_start',
+      totalChunks,
+      totalSize: bundleCode.length,
       timestamp: Date.now(),
     }));
+
+    for (let i = 0; i < totalChunks; i++) {
+      const start = i * CHUNK_SIZE;
+      const data = bundleCode.slice(start, start + CHUNK_SIZE);
+      this.ws.send(JSON.stringify({
+        type: 'bundle_chunk',
+        index: i,
+        totalChunks,
+        data,
+      }));
+    }
   }
 }
 
@@ -95,11 +124,24 @@ export async function startCommand(options: StartOptions) {
 
   const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
 
-  if (!packageJson.dependencies?.['react-native']) {
+  const hasReactNative = !!(packageJson.dependencies?.['react-native'] || packageJson.devDependencies?.['react-native']);
+  const isExpo = !!(packageJson.dependencies?.expo || packageJson.devDependencies?.expo);
+
+  if (!hasReactNative && !isExpo) {
     spinner.fail('Not a React Native project');
     console.error(chalk.red('\n❌ This is not a React Native project'));
-    console.log(chalk.gray('No react-native dependency found in package.json\n'));
+    console.log(chalk.gray('No react-native or expo dependency found in package.json\n'));
     process.exit(1);
+  }
+
+  if (isExpo) {
+    spinner.warn(`Expo project detected: ${chalk.cyan(packageJson.name || 'Unnamed Project')}`);
+    console.log(chalk.yellow('\n⚠️  Expo projects need conversion before running in AppTuner.\n'));
+    console.log(chalk.white('Run this to get a step-by-step migration guide for your AI agent:'));
+    console.log(chalk.cyan(`\n  apptuner check${options.project !== process.cwd() ? ` --project ${options.project}` : ''}\n`));
+    console.log(chalk.gray('AppTuner works with bare React Native. Your AI agent (Claude, Cursor, Windsurf)'));
+    console.log(chalk.gray('can convert your project in minutes using the generated prompt.\n'));
+    process.exit(0);
   }
 
   spinner.succeed(`Project validated: ${chalk.cyan(packageJson.name || 'Unnamed Project')}`);
@@ -114,9 +156,12 @@ export async function startCommand(options: StartOptions) {
   // __dirname in compiled dist/cli.js is the dist/ folder, so go up one level to project root
   const rootDir = path.join(__dirname, '..');
 
-  // Find free ports for Metro and Watcher
+  // Find free ports for Metro and Watcher.
+  // Start watcher search from metroPort + 1 to guarantee they never get the same port
+  // (findFreePort releases its test bind before returning, so two sequential calls
+  // can both land on the same port if nothing else claims it in between).
   const metroPort = await findFreePort(3031);
-  const watcherPort = await findFreePort(3030);
+  const watcherPort = await findFreePort(metroPort + 1);
 
   // Start Metro bundler
   spinner.start('Starting Metro bundler...');
@@ -213,7 +258,7 @@ export async function startCommand(options: StartOptions) {
             metroWs.send(JSON.stringify({
               type: 'bundle',
               projectPath,
-              entryPoint: 'App.tsx',
+              entryPoint: 'index.js',
             }));
           });
 
@@ -235,8 +280,8 @@ export async function startCommand(options: StartOptions) {
 
           metroWs.on('error', (err) => reject(err));
 
-          // 60s timeout for large projects
-          setTimeout(() => reject(new Error('Bundle timeout (60s)')), 60000);
+          // 3 minute timeout — large Expo projects can take 90+ seconds
+          setTimeout(() => reject(new Error('Bundle timeout (180s)')), 180000);
         });
 
         const sizeKB = Math.round(code.length / 1024);

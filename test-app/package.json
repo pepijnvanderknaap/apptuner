@@ -6,14 +6,12 @@
     "watch": "node watch-and-bundle.js"
   },
   "dependencies": {
-    "react": "18.2.0",
-    "react-native": "0.74.5"
+    "react": "19.1.4",
+    "react-native": "0.81.6"
   },
   "devDependencies": {
-    "@react-native/babel-preset": "^0.83.1",
-    "@react-native/metro-config": "^0.83.1",
-    "chokidar": "^5.0.0",
-    "metro-react-native-babel-preset": "^0.77.0",
-    "metro-runtime": "^0.83.3"
+    "@react-native/babel-preset": "^0.81.0",
+    "@react-native/metro-config": "^0.81.0",
+    "chokidar": "^5.0.0"
   }
 }

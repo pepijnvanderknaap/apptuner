@@ -1,289 +1,162 @@
-# Apptuner - Development Roadmap
+# AppTuner — Master TODO
 
-## Phase 1: Desktop App Foundation ✅ COMPLETE
-
-- [x] Tauri app setup with React + TypeScript
-- [x] Apple-style design system (CSS)
-- [x] Folder picker UI with drag region
-- [x] Project validation (Rust backend)
-- [x] QR code generation and display
-- [x] WebSocket connection manager
-- [x] Connection status indicator
-- [x] Error handling and messages
-- [x] Empty state design
-- [x] TypeScript build working
-
-**Result**: Beautiful desktop app that validates React Native projects and displays QR codes.
+> Last updated: 2026-02-28
+> One list, ordered by what gets us to first paying users fastest.
+> Context: primary customer = freelance mobile dev sharing WIP apps with clients remotely.
 
 ---
 
-## Phase 2: Bundler Integration ✅ COMPLETE
+## NOW — Unblock first real users
 
-### 2.1 esbuild Setup
-- [x] Add esbuild dependency
-- [x] Configure for React Native (JSX transform)
-- [x] Handle node_modules resolution
-- [x] Support for .js, .jsx, .ts, .tsx files
-- [x] Asset handling (images, fonts)
+- [x] **Upgrade mobile to RN 0.81.6 / React 19.1.4** ✅
+- [x] **Rebuild mobile with SDK 1.0 native modules** ✅ confirmed end-to-end working
+- [x] **Relay max message size → 50MB** ✅
+- [x] **Publish CLI to npm (apptuner@0.1.3)** ✅
+- [x] **Full Cloudflare purge → VPS-only** ✅
+- [x] **Wire MCP to Claude Code locally** ✅
+- [x] **Create `public/llms.txt`** ✅ deploys on next git push
 
-### 2.2 Transform Pipeline
-- [x] Entry point detection (App.js/tsx or index.js)
-- [x] React Native polyfills
-- [x] Environment variables
-- [x] Source maps generation
-- [x] No minification for development (easier debugging)
+- [x] **Fix: camera-on-relaunch bug** ✅ 2026-02-28
+  - `loadingRecents` state added — camera no longer flashes before Recent Projects screen
 
-### 2.3 Integration
-- [x] Update `src/services/bundler.ts` with real esbuild logic
-- [x] Add error handling for bundle failures
-- [x] Bundle wrapper with polyfills
-- [x] Console interception for log streaming
+- [x] **Fix: shake-to-disconnect broken** ✅ 2026-02-28
+  - Root cause: RN 0.81.6 New Architecture debug builds no longer post `RCTShowDevMenuNotification`
+  - In release builds (TestFlight / App Store) shake works perfectly via UIWindow swizzle
+  - JS fix applied: listener now registered once with refs — no re-registration gap during state changes
 
-**Files modified:**
-- `package.json` - Added esbuild and plugins
-- `src/services/bundler.ts` - Full esbuild implementation (~240 lines)
+- [x] **Build + full device test (UDID: 00008101-00140DA11EF9001E)** ✅ 2026-02-28
+  - Confirmed: scan QR → connect → hot reload working end-to-end
+  - Note: shake doesn't work in debug builds (RN 0.81.6 New Arch — works fine in release/TestFlight)
 
-**Result**: ⭐ React Native code bundles in < 500ms with full JSX/TS support!
+- [x] **TestFlight — confirmed working** ✅ 2026-02-28
+  - Scan QR ✅ · hot reload ✅ · shake to disconnect ✅ · no warnings ✅ · recent projects ✅
 
-See [PHASE2_COMPLETE.md](PHASE2_COMPLETE.md) for details.
-
----
-
-## Phase 3: File Watching System 🔜
-
-### 3.1 Rust File Watcher
-- [ ] Implement in `src-tauri/src/lib.rs` using notify crate
-- [ ] Watch specified directories (ignore node_modules, etc.)
-- [ ] Debounce file change events (300ms)
-- [ ] Send events to frontend via Tauri events
-
-### 3.2 Frontend Integration
-- [ ] Listen to file change events
-- [ ] Trigger rebundle on change
-- [ ] Show "Building..." status
-- [ ] Handle build errors
-
-### 3.3 Optimization
-- [ ] Incremental builds
-- [ ] File extension filtering
-- [ ] Ignore patterns (.git, dist, build, etc.)
-- [ ] Performance monitoring
-
-**Files to modify:**
-- `src-tauri/src/lib.rs` - Add file watcher
-- `src/services/bundler.ts` - Add rebuild logic
-- `src/App.tsx` - Listen to file change events
-
-**Expected outcome**: Automatic rebuilds when code changes are detected.
+- [ ] **App Store submission** — submit same build (1.0 build 1) for App Store review
+  - Go to App Store Connect → AppTunerMobile → App Store tab → add build → submit for review
+  - Review takes 1-3 days, usually same day
 
 ---
 
-## Phase 4: Cloudflare Workers Relay 🔜
+## SOON — Make it trustworthy enough to charge for
 
-### 4.1 Worker Setup
-- [ ] Create new Cloudflare Workers project
-- [ ] Set up WebSocket handling
-- [ ] Session management (connect desktop to mobile)
-- [ ] Message routing between connections
+- [ ] **Stripe + pricing working end-to-end**
+  - Re-point Supabase + Stripe from old Cloudflare URLs → VPS endpoints
+  - Set up pricing tiers: Indie $12/mo (1 device), Team $49/mo (5 devices)
+  - Test full flow: signup → payment → session works
 
-### 4.2 Session Logic
-- [ ] Generate unique session IDs (match desktop app)
-- [ ] Desktop connection endpoint: `/desktop/{sessionId}`
-- [ ] Mobile connection endpoint: `/mobile/{sessionId}`
-- [ ] Heartbeat/keepalive
-- [ ] Connection timeout handling
+- [ ] **Rewrite landing page (apptuner.io)**
+  - Hero: "Your app on their phone. Anywhere. Instantly."
+  - Lead with the relay magic — that's the differentiator nobody else has
+  - Sub-headline: "No TestFlight. No same WiFi. Just scan and go."
+  - Show the killer moment: 2 phones, different WiFi networks, same live app
+  - Vercel/Linear aesthetic — cutting edge, modern
+  - Include: quick start, SDK library list, pricing
 
-### 4.3 Message Protocol
-```typescript
-// Desktop → Mobile
-{
-  type: 'bundle_update',
-  payload: { code: string, sourceMap?: string }
-}
+- [ ] **Publish MCP to npm as `apptuner-mcp`**
+  - Run `npm login` first (token expired), then `cd dist-mcp && npm publish --access public`
 
-// Mobile → Desktop
-{
-  type: 'mobile_connected',
-  payload: { deviceInfo: {...} }
-}
+- [ ] **git push** — deploys `llms.txt` + any dashboard updates to apptuner.io
 
-// Bidirectional
-{
-  type: 'error',
-  payload: { message: string }
-}
-```
-
-### 4.4 Deployment
-- [ ] Deploy to Cloudflare Workers
-- [ ] Get production URL
-- [ ] Update desktop app with production relay URL
-- [ ] Add relay URL configuration option
-
-**New files:**
-- `relay/` - New directory for Cloudflare Worker
-- `relay/src/index.ts` - Worker entry point
-- `relay/wrangler.toml` - Cloudflare config
-
-**Expected outcome**: Stable cloud-based relay for desktop ↔ mobile communication.
+- [ ] **App Store listing polish**
+  - Professional screenshots (show relay magic — 2 phones, different WiFi)
+  - Description written for discoverability: "share React Native app without TestFlight"
+  - **Replace placeholder app icon** — currently a solid blue square, needs real AppTuner branding
+    - Source file: `mobile/ios/AppTunerMobile/Images.xcassets/AppIcon.appiconset/AppIcon-1024.png`
+    - Replace with a 1024x1024 PNG, Xcode auto-generates all sizes
 
 ---
 
-## Phase 5: React Native Mobile App 🔜
+## NEXT — Get discovered
 
-### 5.1 Project Setup
-- [ ] Create React Native project (not Expo!)
-- [ ] TypeScript configuration
-- [ ] Navigation setup (if needed)
-- [ ] Development environment setup
+- [ ] **Submit MCP to registries**
+  - mcp.so + Smithery
+  - Tags: react-native, mobile, hot-reload, development
 
-### 5.2 QR Scanner
-- [ ] Add camera permissions
-- [ ] QR code scanning library
-- [ ] Parse `apptuner://connect/{sessionId}` URLs
-- [ ] Validation and error handling
+- [ ] **`create-apptuner-app` CLI on npm**
+  - `npx create-apptuner-app my-app --template fitness-tracker`
+  - AI tools will suggest this alongside `create-expo-app`
+  - This is how AI agents discover AppTuner automatically
 
-### 5.3 WebSocket Client
-- [ ] Connect to Cloudflare relay
-- [ ] Send device info on connect
-- [ ] Receive bundle updates
-- [ ] Handle disconnections
+- [ ] **`apptuner.io/start` page**
+  - Single-purpose: "Share your React Native app with anyone in 5 minutes"
+  - Written for devs who already have a working RN app
+  - Conversion funnel for word-of-mouth arrivals
 
-### 5.4 Code Execution
-- [ ] Evaluate received bundle code
-- [ ] React Native bridge setup
-- [ ] Error boundary for code execution
-- [ ] Console.log capture
+- [ ] **`apptuner.io/templates` page**
+  - Grid of all templates with screenshots
+  - Links to GitHub org `apptuner-templates`
 
-### 5.5 UI/UX
-- [ ] Splash screen
-- [ ] Scanning screen
-- [ ] Connected status indicator
-- [ ] Error overlay
-- [ ] Disconnect button
+- [ ] **Create GitHub org: `apptuner-templates`**
+  - All templates, starter kits, and examples live here separately from rawvibe
 
-**New files:**
-- `mobile/` - New React Native project directory
-- `mobile/src/App.tsx` - Main mobile app
-- `mobile/src/Scanner.tsx` - QR scanner component
-- `mobile/src/Runtime.tsx` - Code execution component
+- [ ] **Comparison page: AppTuner vs Expo**
+  - Title: "AppTuner vs Expo: share your app with anyone, instantly"
+  - SEO targets: "react native preview on device without expo", "share react native app with client without testflight"
+  - Machine-readable — gets picked up by AI RAG systems
 
-**Expected outcome**: Mobile app that scans QR, connects, and runs user's React Native code.
+- [ ] **Stack Overflow answer**
+  - Q: "How to share React Native app with client without TestFlight?"
+  - Thorough, genuinely helpful answer mentioning AppTuner
+  - Gets indexed by AI tools within days
 
 ---
 
-## Phase 6: Hot Reload & Polish ⏭️
+## TEMPLATES — 2 per week, 10 weeks = 20 templates by June 2026
 
-### 6.1 Hot Reload
-- [ ] Track component tree
-- [ ] Preserve state during reload
-- [ ] Fast refresh for React components
-- [ ] Full reload for other changes
+> Every template: TypeScript + .cursorrules + .windsurfrules + CLAUDE.md + AGENTS.md + Supabase auth + AppTuner pre-configured.
+> For each release: post on Reddit (r/reactnative, r/cursor, r/vibecoding) + X with demo gif.
 
-### 6.2 Error Handling
-- [ ] Syntax error overlay (mobile)
-- [ ] Runtime error overlay (mobile)
-- [ ] Stack trace support
-- [ ] Source map integration
-
-### 6.3 Developer Tools
-- [ ] Console log streaming (mobile → desktop)
-- [ ] Network request inspection
-- [ ] Performance metrics
-- [ ] Memory usage monitoring
-
-### 6.4 UI Polish
-- [ ] Loading animations
-- [ ] Toast notifications
-- [ ] Advanced settings panel (hidden)
-- [ ] Keyboard shortcuts
-- [ ] Multiple device support
+- [ ] **Template 1: Fitness tracker** — workouts, progress, health data
+- [ ] **Template 2: Restaurant ordering** — menu, cart, order status
+- [ ] **Template 3: Community/members app** — tennis club, gym, sports team
+- [ ] **Template 4: Booking/scheduling** — appointments, calendar
+- [ ] **Template 5: Marketplace** — listings, search, messaging
+- [ ] **Template 6: Event management** — tickets, attendees, schedule
+- [ ] **Template 7: Delivery tracker** — orders, map, status
+- [ ] **Template 8: Chat/messaging** — rooms, direct messages, notifications
+- [ ] **Template 9: News/blog reader** — feed, bookmarks, categories
+- [ ] **Template 10: Dashboard/admin** — stats, charts, management
 
 ---
 
-## Phase 7: Advanced Features ⏭️
+## CLEANUP — Remove deprecated cruft
 
-### 7.1 Configuration
-- [ ] `.apptuner.json` config file
-- [ ] Custom entry points
-- [ ] Bundler options
-- [ ] Ignore patterns
-- [ ] Transform plugins
+- [ ] **Remove `apptuner check` command**
+  - Deprecated, not needed in SDK model
+  - Delete `src-cli/commands/check.ts` and remove from `cli.ts`
 
-### 7.2 Performance
-- [ ] Bundle size analysis
-- [ ] Caching strategy
-- [ ] Differential updates (only changed modules)
-- [ ] Compression
-
-### 7.3 Debugging
-- [ ] Source maps working end-to-end
-- [ ] Breakpoint support
-- [ ] Variable inspection
-- [ ] Step debugging
-
-### 7.4 Platforms
-- [ ] iOS app bundle
-- [ ] Android APK
-- [ ] Windows desktop installer
-- [ ] Linux AppImage
+- [ ] **Remove `apptuner convert` command**
+  - Deprecated, not needed in SDK model
+  - Delete `src-cli/commands/convert.ts` and remove from `cli.ts`
 
 ---
 
-## Current Priority: Phase 3 - File Watching System
+## DISTRIBUTION — When we're ready to scale
 
-**Start here:**
+- [ ] **Demo video (60 seconds max)**
+  - CLI start → QR scan → app on phone → code change → hot reload → share QR with friend on different WiFi
+  - The "different WiFi" moment is the killer — nobody else can do this
 
-1. Add notify crate to `src-tauri/Cargo.toml`
+- [ ] **X / Reddit presence**
+  - Create X account (@apptuner or @apptunerio)
+  - First 5 posts planned:
+    1. Zero followers + demo gif of relay magic
+    2. First template launch
+    3. "We added llms.txt so AI agents know about AppTuner"
+    4. Hot reload: code change → phone updates in 2s
+    5. Two phones, different WiFi, same live app
+  - Reddit posts on r/reactnative, r/cursor, r/vibecoding when each template drops
 
-2. Implement file watcher in Rust (`src-tauri/src/lib.rs`):
-   - Watch specified directory recursively
-   - Filter file types (.js, .jsx, .ts, .tsx)
-   - Ignore patterns (node_modules, .git, etc.)
-   - Debounce events (300ms)
-
-3. Create Tauri command to start/stop watching:
-   ```rust
-   #[tauri::command]
-   fn start_file_watcher(path: String) -> Result<(), String>
-   ```
-
-4. Emit events to frontend when files change:
-   ```rust
-   app.emit_all("file_changed", payload)?;
-   ```
-
-5. Update frontend to listen and trigger rebundles:
-   ```typescript
-   await listen('file_changed', () => {
-     bundler.bundle().then(sendToMobile);
-   });
-   ```
-
-**Success criteria:**
-- File changes detected within 300ms
-- No false positives (ignore node_modules, etc.)
-- Debouncing prevents rapid rebuilds
-- Frontend receives events correctly
+- [ ] **Play Store submission (Android)**
+  - After iOS is live and stable
 
 ---
 
-## Success Metrics
+## REAL-WORLD TESTING — Before any public launch
 
-- **Speed**: From folder select to phone preview < 60 seconds
-- **Reliability**: 99%+ successful connections
-- **Simplicity**: 3 clicks maximum (select folder, scan QR, done)
-- **Quality**: Apple-level UI polish
-
-## Resources Needed
-
-- [ ] Cloudflare Workers account (free tier OK)
-- [ ] Apple Developer account (for iOS app)
-- [ ] Google Play Developer account (for Android app)
-- [ ] Test devices (iOS + Android)
-
----
-
-**Last Updated**: Phase 1 Complete
-**Next Milestone**: Working bundler with esbuild
-**Target**: Test Phase 2 within 1 week
+- [ ] **Test: navigation-heavy app** (tabs + stack + deep linking)
+- [ ] **Test: camera app** (VisionCamera live preview + photo capture)
+- [ ] **Test: maps app** (react-native-maps + location permissions)
+- [ ] **Test: notification-heavy app** (Notifee local + background handlers)
+- [ ] **Test: relay over 4G/5G** (phone and Mac on completely different networks)
+- [ ] **Test: large bundle app** (complex app, many dependencies — test chunking)

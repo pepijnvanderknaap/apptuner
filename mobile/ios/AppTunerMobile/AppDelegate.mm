@@ -1,27 +1,25 @@
 #import "AppDelegate.h"
 
 #import <React/RCTBundleURLProvider.h>
-#import <React/RCTDevMenu.h>
 
 @implementation AppDelegate
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
+  // react-native-maps uses Apple Maps by default on iOS (no API key needed).
+  // To enable Google Maps, add GoogleMaps pod + [GMSServices provideAPIKey:@"..."] here.
   self.moduleName = @"AppTunerMobile";
   self.initialProps = @{};
 
-  BOOL result = [super application:application didFinishLaunchingWithOptions:launchOptions];
-
-  // Disable the default React Native shake-to-show dev menu.
-  // AppTuner uses its own shake handler via react-native-shake.
-#if DEBUG
-  [self.bridge.devMenu setShakeToShow:NO];
-#endif
-
-  return result;
+  return [super application:application didFinishLaunchingWithOptions:launchOptions];
 }
 
 - (NSURL *)sourceURLForBridge:(RCTBridge *)bridge
+{
+  return [self bundleURL];
+}
+
+- (NSURL *)bundleURL
 {
 #if DEBUG
   return [[RCTBundleURLProvider sharedSettings] jsBundleURLForBundleRoot:@"index"];

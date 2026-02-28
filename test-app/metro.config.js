@@ -3,6 +3,12 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
+// Watch parent directory's node_modules for metro-runtime and other dependencies
+config.watchFolders = [
+  path.resolve(__dirname, '..'), // Parent apptuner directory
+  path.resolve(__dirname, '../node_modules'), // Parent node_modules
+];
+
 // Externalize React and React Native - they will be provided by the host app
 config.resolver = {
   ...config.resolver,

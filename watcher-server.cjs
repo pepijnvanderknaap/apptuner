@@ -50,6 +50,7 @@ wss.on('connection', (ws) => {
           '**/pnpm-lock.yaml',
           '**/.expo-shared/**',
           '**/metro-cache/**',
+          '**/.metro/**',
           '**/.bundle/**',
         ];
 
