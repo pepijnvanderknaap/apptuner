@@ -6,11 +6,11 @@ WORKDIR /app
 # Install zsign build dependencies
 RUN apt-get update && apt-get install -y \
     git g++ cmake libssl-dev libminizip-dev zlib1g-dev \
-    libssl3 libminizip1 \
+    libssl3 libminizip1 ca-certificates \
     --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
 # Build zsign from source
-RUN git clone https://github.com/zhlynn/zsign /tmp/zsign && \
+RUN git -c http.sslVerify=false clone https://github.com/zhlynn/zsign /tmp/zsign && \
     cd /tmp/zsign/src && \
     g++ -std=c++11 -I. -I./common -I/usr/include/minizip \
         -o zsign zsign.cpp archo.cpp bundle.cpp macho.cpp openssl.cpp signing.cpp common/*.cpp \
