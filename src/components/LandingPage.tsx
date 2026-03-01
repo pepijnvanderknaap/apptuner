@@ -44,14 +44,14 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* Hero */}
       <section className="hero">
         <div className="container">
-          <div className="hero-eyebrow">React Native — no Expo lock-in</div>
+          <div className="hero-eyebrow">Expo alternative · no lock-in</div>
           <h1 className="hero-title">
-            The Expo alternative<br />
-            <span>built for professionals.</span>
+            Build React Native apps<br />
+            <span>without the Expo tax.</span>
           </h1>
           <p className="hero-subtitle">
-            Same modules. Same developer experience. Instant IPA builds.
-            At less than half the price of EAS — with no vendor lock-in.
+            Same native modules, same developer experience, instant iOS builds —
+            at less than half the price of EAS. Share your live app with anyone in the world with a 6-character code.
           </p>
           <div className="hero-cta">
             <button className="btn-primary btn-large" onClick={() => onEnterApp('signup')}>
@@ -59,15 +59,58 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
             </button>
             <span className="cta-subtext">14 days free · no credit card required</span>
           </div>
+          <div className="hero-proof">
+            <div className="proof-item">
+              <div className="proof-value">38</div>
+              <div className="proof-label">Native modules pre-installed</div>
+            </div>
+            <div className="proof-item">
+              <div className="proof-value">~3s</div>
+              <div className="proof-label">iOS IPA build time</div>
+            </div>
+            <div className="proof-item">
+              <div className="proof-value">$49</div>
+              <div className="proof-label">vs $99/mo on EAS</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Sharing — killer feature */}
+      <section className="sharing-section">
+        <div className="container">
+          <div className="sharing-inner">
+            <div>
+              <div className="section-label">Live sharing</div>
+              <h2 className="section-title">Show your app to anyone, anywhere.</h2>
+              <p className="section-subtitle" style={{ marginBottom: 0 }}>
+                Working remotely? Client in another city? QA team across the globe?
+                Send a 6-character code. They open the AppTuner app, enter the code,
+                and see your app live on their phone — in real time, in sync with every save you make.
+                No build, no TestFlight invite, no waiting.
+              </p>
+            </div>
+            <div className="sharing-visual">
+              <div className="code-display">A3K9FX</div>
+              <div className="code-caption">Your live session code</div>
+              <div className="sharing-arrow">↓</div>
+              <div className="sharing-devices">
+                <div className="device-pill">📱 Your device</div>
+                <div className="device-pill">📱 Client's phone</div>
+                <div className="device-pill">📱 QA team</div>
+              </div>
+              <div className="code-caption" style={{ textAlign: 'center' }}>All see the same live app — instantly</div>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Comparison */}
       <section id="compare" className="comparison-section">
         <div className="container">
-          <div className="section-label">Side by side</div>
-          <h2 className="section-title">AppTuner vs Expo / EAS</h2>
-          <p className="section-subtitle">
+          <div className="section-label dark">Side by side</div>
+          <h2 className="section-title on-dark">AppTuner vs Expo / EAS</h2>
+          <p className="section-subtitle on-dark">
             Expo's SDK modules are MIT licensed. We compile them directly into our shell — same modules, same APIs, no rebuilding from scratch.
           </p>
 
@@ -164,9 +207,9 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* SDK */}
       <section id="sdk" className="sdk-section">
         <div className="container">
-          <div className="section-label">Pre-installed modules</div>
-          <h2 className="section-title">No npm install. No pod install.</h2>
-          <p className="section-subtitle">
+          <div className="section-label dark">Pre-installed modules</div>
+          <h2 className="section-title on-dark">No npm install. No pod install.</h2>
+          <p className="section-subtitle on-dark">
             These modules are compiled into the AppTuner shell. Import them directly — they just work.
           </p>
           <div className="sdk-grid">
@@ -251,9 +294,9 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* Pricing */}
       <section id="pricing" className="pricing-section">
         <div className="container">
-          <div className="section-label">Pricing</div>
-          <h2 className="section-title">Simple, transparent pricing</h2>
-          <p className="section-subtitle">All plans include every feature. No paywalled modules, no build limits.</p>
+          <div className="section-label dark">Pricing</div>
+          <h2 className="section-title on-dark">Simple, transparent pricing</h2>
+          <p className="section-subtitle on-dark">All plans include every feature. No paywalled modules, no build limits.</p>
 
           <div className="pricing-grid">
             <div className="pricing-card">
@@ -270,7 +313,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
                 <li>Remote sharing with your team</li>
                 <li>Live console logs</li>
               </ul>
-              <button className="btn-outline" onClick={() => handleCheckout('monthly')}>
+              <button className="btn-outline-dark" onClick={() => handleCheckout('monthly')}>
                 Get started
               </button>
               <div className="affiliate-note">Affiliates earn 30% recurring</div>
@@ -340,7 +383,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
         <div className="container">
           <h2>Ready to switch from EAS?</h2>
           <p>14-day free trial. No credit card required. Cancel or keep — your call.</p>
-          <button className="btn-primary btn-large" onClick={() => onEnterApp('signup')}>
+          <button className="btn-white btn-large" onClick={() => onEnterApp('signup')}>
             Start free trial
           </button>
         </div>
