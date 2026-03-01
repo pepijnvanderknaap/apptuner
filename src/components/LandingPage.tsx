@@ -44,15 +44,15 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* Hero */}
       <section className="hero">
         <div className="container">
-          <div className="hero-eyebrow">React Native · live remote sharing</div>
+          <div className="hero-eyebrow">React Native developer toolchain</div>
           <h1 className="hero-title">
-            Your app, live on<br />
-            <span>anyone's phone.</span>
+            The React Native workflow,<br />
+            <span>untethered.</span>
           </h1>
           <p className="hero-subtitle">
-            Send a 6-character code. Your client opens the AppTuner app, enters the code,
-            and sees your exact dev session — live, on a real device, wherever they are.
-            No build. No TestFlight invite. No waiting.
+            Hot reload and client sharing over the internet — no USB, no local network.
+            Full native module stack pre-installed, no pod install.
+            Signed .ipa in 3 seconds. No Xcode. No EAS. No queue.
           </p>
           <div className="hero-cta">
             <button className="btn-primary btn-large" onClick={() => onEnterApp('signup')}>
@@ -62,16 +62,16 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
           </div>
           <div className="hero-proof">
             <div className="proof-item">
-              <div className="proof-value">38</div>
-              <div className="proof-label">Native modules pre-installed</div>
+              <div className="proof-value">Full SDK</div>
+              <div className="proof-label">Expo-compatible native modules</div>
             </div>
             <div className="proof-item">
               <div className="proof-value">~3s</div>
-              <div className="proof-label">iOS IPA build time</div>
+              <div className="proof-label">signed .ipa, no Xcode needed</div>
             </div>
             <div className="proof-item">
               <div className="proof-value">$29</div>
-              <div className="proof-label">per month, all features included</div>
+              <div className="proof-label">per month, everything included</div>
             </div>
           </div>
         </div>
