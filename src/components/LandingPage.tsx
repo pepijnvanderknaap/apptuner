@@ -46,14 +46,15 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
         <div className="container">
           <div className="hero-eyebrow">React Native developer toolchain</div>
           <h1 className="hero-title">
-            The React Native workflow,<br />
-            <span>untethered.</span>
+            React Native development,<br />
+            <span>from anywhere.</span>
           </h1>
-          <p className="hero-subtitle">
-            Hot reload and client sharing over the internet — no USB, no local network.
-            Full native module stack pre-installed, no pod install.
-            Signed .ipa in 3 seconds. No Xcode. No EAS. No queue.
-          </p>
+          <ul className="hero-features">
+            <li>Hot reload + client sharing over the internet — no USB, no local network</li>
+            <li>Full native module stack pre-installed — no pod install, no EAS</li>
+            <li>Signed .ipa in ~3 seconds — no Xcode, no Mac required</li>
+            <li>$29 / month · everything included · cancel anytime</li>
+          </ul>
           <div className="hero-cta">
             <button className="btn-primary btn-large" onClick={() => onEnterApp('signup')}>
               Start free trial
@@ -109,9 +110,9 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* Comparison */}
       <section id="compare" className="comparison-section">
         <div className="container">
-          <div className="section-label dark">Side by side</div>
-          <h2 className="section-title on-dark">AppTuner vs the traditional workflow</h2>
-          <p className="section-subtitle on-dark">
+          <div className="section-label">Side by side</div>
+          <h2 className="section-title">AppTuner vs the traditional workflow</h2>
+          <p className="section-subtitle">
             The standard React Native workflow ties you to USB cables, local networks, and slow build queues. AppTuner moves the whole thing to the cloud.
           </p>
 
@@ -203,9 +204,9 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* SDK */}
       <section id="sdk" className="sdk-section">
         <div className="container">
-          <div className="section-label dark">Pre-installed modules</div>
-          <h2 className="section-title on-dark">No npm install. No pod install.</h2>
-          <p className="section-subtitle on-dark">
+          <div className="section-label">Pre-installed modules</div>
+          <h2 className="section-title">No npm install. No pod install.</h2>
+          <p className="section-subtitle">
             These modules are compiled into the AppTuner shell. Import them directly — they just work.
           </p>
           <div className="sdk-grid">
@@ -290,9 +291,9 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* Pricing */}
       <section id="pricing" className="pricing-section">
         <div className="container">
-          <div className="section-label dark">Pricing</div>
-          <h2 className="section-title on-dark">Simple, transparent pricing</h2>
-          <p className="section-subtitle on-dark">All plans include every feature. No paywalled modules, no build limits.</p>
+          <div className="section-label">Pricing</div>
+          <h2 className="section-title">Simple, transparent pricing</h2>
+          <p className="section-subtitle">All plans include every feature. No paywalled modules, no build limits.</p>
 
           <div className="pricing-grid">
             <div className="pricing-card">
@@ -309,7 +310,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
                 <li>Remote sharing with your team</li>
                 <li>Live console logs</li>
               </ul>
-              <button className="btn-outline-dark" onClick={() => handleCheckout('monthly')}>
+              <button className="btn-secondary" style={{ width: '100%', padding: '10px' }} onClick={() => handleCheckout('monthly')}>
                 Get started
               </button>
               <div className="affiliate-note">Affiliates earn $8.70/mo per customer</div>
