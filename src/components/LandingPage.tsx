@@ -86,22 +86,19 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
               <div className="section-label">Live sharing</div>
               <h2 className="section-title">Show your app to anyone, anywhere.</h2>
               <p className="section-subtitle" style={{ marginBottom: 0 }}>
-                Working remotely? Client in another city? QA team across the globe?
-                Send a 6-character code. They open the AppTuner app, enter the code,
-                and see your app live on their phone — in real time, in sync with every save you make.
-                No build, no TestFlight invite, no waiting.
+                Share a 6-character project code. Anyone with the AppTuner app connects instantly —
+                live, in sync with every save. No build, no TestFlight invite, no waiting.
               </p>
             </div>
             <div className="sharing-visual">
-              <div className="code-display">A3K9FX</div>
-              <div className="code-caption">Your live session code</div>
-              <div className="sharing-arrow">↓</div>
-              <div className="sharing-devices">
-                <div className="device-pill">📱 Your device</div>
-                <div className="device-pill">📱 Client's phone</div>
-                <div className="device-pill">📱 QA team</div>
+              <div className="share-card">
+                <div className="share-card-label">Project code</div>
+                <div className="code-display">A3K9FX</div>
+                <div className="share-card-status">
+                  <span className="status-dot" />
+                  Live · 2 devices connected
+                </div>
               </div>
-              <div className="code-caption" style={{ textAlign: 'center' }}>All see the same live app — instantly</div>
             </div>
           </div>
         </div>
