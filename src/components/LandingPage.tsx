@@ -81,24 +81,43 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* Sharing — killer feature */}
       <section className="sharing-section">
         <div className="container">
-          <div className="sharing-inner">
-            <div>
-              <div className="section-label">Live sharing</div>
-              <h2 className="section-title">Show your app to anyone, anywhere.</h2>
-              <p className="section-subtitle" style={{ marginBottom: 0 }}>
-                Share a 6-character project code. Anyone with the AppTuner app connects instantly —
-                live, in sync with every save. No build, no TestFlight invite, no waiting.
-              </p>
-            </div>
-            <div className="sharing-visual">
-              <div className="share-card">
-                <div className="share-card-label">Project code</div>
-                <div className="code-display">A3K9FX</div>
-                <div className="share-card-status">
-                  <span className="status-dot" />
-                  Live · 2 devices connected
-                </div>
+          <div className="section-label">Live sharing</div>
+          <h2 className="section-title">Show your app to anyone, anywhere.</h2>
+          <p className="section-subtitle" style={{ margin: '0 auto 48px' }}>
+            Share a 6-character project code. Anyone with the AppTuner app connects instantly —
+            live, in sync with every save. No build, no TestFlight invite, no waiting.
+          </p>
+
+          <div className="sharing-screenshots">
+            <div className="browser-mockup">
+              <div className="browser-chrome">
+                <div className="browser-dots"><span/><span/><span/></div>
+                <div className="browser-url">app.apptuner.io</div>
               </div>
+              <img src="/assets/Screenshot 2026-03-01 at 12.24.22.jpg" alt="AppTuner — Connect Your Mobile Device" className="screenshot-img" />
+            </div>
+
+            <div className="browser-mockup">
+              <div className="browser-chrome">
+                <div className="browser-dots"><span/><span/><span/></div>
+                <div className="browser-url">app.apptuner.io</div>
+              </div>
+              <img src="/assets/Screenshot 2026-03-01 at 12.25.13.jpg" alt="AppTuner — Live Session" className="screenshot-img" />
+            </div>
+          </div>
+
+          <div className="sharing-bullets">
+            <div className="sharing-bullet">
+              <span className="bullet-arrow">→</span>
+              Scan QR or enter the 6-character code in the AppTuner app
+            </div>
+            <div className="sharing-bullet">
+              <span className="bullet-arrow">→</span>
+              Every file save hot-reloads on every connected device instantly
+            </div>
+            <div className="sharing-bullet">
+              <span className="bullet-arrow">→</span>
+              No build, no TestFlight, no local network required
             </div>
           </div>
         </div>
@@ -113,47 +132,35 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
             The standard React Native workflow ties you to USB cables, local networks, and slow build queues. AppTuner moves the whole thing to the cloud.
           </p>
 
-          <table className="compare-table">
-            <thead>
-              <tr>
-                <th>Feature</th>
-                <th className="col-apptuner">AppTuner</th>
-                <th>Standard workflow</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>Hot reload on real device</td>
-                <td className="good">✓ Over the internet</td>
-                <td>USB or local WiFi only</td>
-              </tr>
-              <tr>
-                <td>Share with remote client</td>
-                <td className="good">✓ 6-character code, instant</td>
-                <td className="bad">TestFlight invite + 15 min wait</td>
-              </tr>
-              <tr>
-                <td>iOS build (IPA)</td>
-                <td className="good">✓ ~3 seconds</td>
-                <td className="bad">Xcode required, 10–30 min</td>
-              </tr>
-              <tr>
-                <td>Works on Windows / Linux</td>
-                <td className="good">✓ Yes</td>
-                <td className="bad">iOS builds require a Mac</td>
-              </tr>
-              <tr>
-                <td>Native modules pre-installed</td>
-                <td className="good">✓ 38 modules, no pod install</td>
-                <td className="bad">Manual install per project</td>
-              </tr>
-              <tr>
-                <td>Price</td>
-                <td className="good">$29 / month</td>
-                <td>Mac + Apple dev account + time</td>
-              </tr>
-            </tbody>
-          </table>
+          <div className="compare-grid">
+            <div className="compare-cell compare-head">Feature</div>
+            <div className="compare-cell compare-head compare-head-at">AppTuner</div>
+            <div className="compare-cell compare-head">Standard workflow</div>
+
+            <div className="compare-cell compare-feat">Hot reload on real device</div>
+            <div className="compare-cell compare-good">✓ Over the internet</div>
+            <div className="compare-cell compare-std">USB or local WiFi only</div>
+
+            <div className="compare-cell compare-feat">Share with remote client</div>
+            <div className="compare-cell compare-good">✓ 6-character code, instant</div>
+            <div className="compare-cell compare-std">TestFlight invite + 15 min wait</div>
+
+            <div className="compare-cell compare-feat">iOS build (IPA)</div>
+            <div className="compare-cell compare-good">✓ ~3 seconds</div>
+            <div className="compare-cell compare-std">Xcode required, 10–30 min</div>
+
+            <div className="compare-cell compare-feat">Works on Windows / Linux</div>
+            <div className="compare-cell compare-good">✓ Yes</div>
+            <div className="compare-cell compare-std">iOS builds require a Mac</div>
+
+            <div className="compare-cell compare-feat">Native modules pre-installed</div>
+            <div className="compare-cell compare-good">✓ 38 modules, no pod install</div>
+            <div className="compare-cell compare-std">Manual install per project</div>
+
+            <div className="compare-cell compare-feat">Price</div>
+            <div className="compare-cell compare-good">$29 / month</div>
+            <div className="compare-cell compare-std">Mac + Apple dev account + time</div>
+          </div>
         </div>
       </section>
 
@@ -165,34 +172,28 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
 
           <div className="features-grid">
             <div className="feature-card">
-              <div className="feature-icon">⚡</div>
               <h3>Instant hot reload</h3>
-              <p>Save a file, see the change on your device. Works over the internet — no local network required.</p>
+              <p>Save a file, see it on your device. Works over the internet — no local network needed.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">📦</div>
               <h3>IPA in 3 seconds</h3>
-              <p>Upload your Apple certificate, get a signed .ipa back in seconds. No Xcode, no Mac farm, no queue.</p>
+              <p>Upload your cert, get a signed .ipa back. No Xcode, no Mac farm, no queue.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">🔌</div>
               <h3>38 native modules</h3>
-              <p>Camera, maps, biometrics, gestures, storage, sensors — pre-compiled and ready. No pod install needed.</p>
+              <p>Camera, maps, biometrics, storage — pre-compiled and ready. No pod install.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">📱</div>
               <h3>Real device testing</h3>
-              <p>Test on actual hardware with real native modules. No simulator limitations or sandbox restrictions.</p>
+              <p>Actual hardware, real native APIs. No simulator limits or sandbox restrictions.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">🌐</div>
               <h3>Remote sharing</h3>
-              <p>Share a 6-character code. Clients, teammates, or QA anywhere in the world see your app live.</p>
+              <p>6-character code. Anyone, anywhere sees your app live.</p>
             </div>
             <div className="feature-card">
-              <div className="feature-icon">📋</div>
               <h3>Live console</h3>
-              <p>Every log, warning, and error from your device streams to your browser in real time.</p>
+              <p>Logs, warnings, and errors stream to your browser in real time.</p>
             </div>
           </div>
         </div>
@@ -258,28 +259,23 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* How it works */}
       <section className="how-section">
         <div className="container">
-          <div className="section-label">Getting started</div>
+          <div className="section-label">Flow</div>
           <h2 className="section-title">Up and running in 60 seconds</h2>
           <div className="steps">
             <div className="step">
               <div className="step-number">1</div>
-              <h3>Install the CLI</h3>
-              <p>Run <code style={{ fontSize: 12, color: '#4ade80' }}>npm install -g apptuner</code> in your project.</p>
+              <h3>Install &amp; connect</h3>
+              <p>Run <code style={{ fontSize: 12, color: '#4ade80' }}>npm install -g apptuner</code>, download AppTuner Mobile, and scan the QR code.</p>
             </div>
             <div className="step">
               <div className="step-number">2</div>
-              <h3>Scan QR code</h3>
-              <p>Open the AppTuner app on your device and scan the QR code from your browser.</p>
+              <h3>Scan &amp; code</h3>
+              <p>Save a file. Your change appears on the device in milliseconds — over the internet, no USB needed.</p>
             </div>
             <div className="step">
               <div className="step-number">3</div>
-              <h3>Start coding</h3>
-              <p>Save a file. Your changes appear on the device immediately.</p>
-            </div>
-            <div className="step">
-              <div className="step-number">4</div>
-              <h3>Build IPA</h3>
-              <p>When ready, upload your Apple cert. Get a signed .ipa in 3 seconds, ready for App Store.</p>
+              <h3>Build &amp; ship</h3>
+              <p>Upload your Apple cert. Get a signed .ipa in 3 seconds, ready for TestFlight or the App Store.</p>
             </div>
           </div>
         </div>
@@ -303,6 +299,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
               <ul className="plan-features">
                 <li>Hot reload on real devices</li>
                 <li>38 pre-installed native modules</li>
+                <li>SDK updates while subscribed</li>
                 <li>Unlimited IPA builds</li>
                 <li>Remote sharing with your team</li>
                 <li>Live console logs</li>
@@ -310,7 +307,6 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
               <button className="btn-secondary" style={{ width: '100%', padding: '10px' }} onClick={() => handleCheckout('monthly')}>
                 Get started
               </button>
-              <div className="affiliate-note">Affiliates earn $8.70/mo per customer</div>
             </div>
 
             <div className="pricing-card featured">
@@ -330,7 +326,6 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
               <button className="btn-primary" style={{ width: '100%', padding: '10px' }} onClick={() => handleCheckout('lifetime')}>
                 Get lifetime access
               </button>
-              <div className="affiliate-note">Affiliates earn $99 per sale</div>
             </div>
           </div>
 
@@ -365,8 +360,8 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
               <p>Your source code is never stored on our servers. The relay only transfers compiled JavaScript bundles between your machine and your device. Certificates uploaded for IPA signing are deleted immediately after the build completes.</p>
             </div>
             <div className="faq-item">
-              <h3>How does the affiliate programme work?</h3>
-              <p>You get a unique referral link. Monthly plans pay 30% recurring for as long as the customer stays subscribed. Lifetime plans pay a one-time $99 commission. Payouts via Stripe.</p>
+              <h3>Do I need a Mac?</h3>
+              <p>Not for development. The CLI and hot reload work on any OS. For IPA builds you need an Apple developer certificate — but the signing happens on our server, not your machine.</p>
             </div>
           </div>
         </div>

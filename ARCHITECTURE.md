@@ -1,6 +1,6 @@
 # AppTuner — Architecture Reference
 
-**Last Updated:** 2026-02-28
+**Last Updated:** 2026-03-01
 **Status:** ✅ Core system functional + TestFlight live. Now expanding SDK.
 
 ---
@@ -69,20 +69,19 @@ See `todo.md` for the full list of modules to add.
 | `apptuner start [path]` | ✅ Active | Start Metro + watcher, connect to relay, auto-reload on file changes |
 | `apptuner stop` | ✅ Active | Kill all background services |
 | `apptuner status` | ✅ Active | Show connection status |
-| `apptuner check [path]` | 🗑️ Delete when convenient | Expo scanner — dead feature |
-| `apptuner convert [path]` | 🗑️ Delete when convenient | Expo converter — dead feature |
 
 ---
 
-## Re-signing Build Pipeline (to build)
+## Re-signing Build Pipeline (✅ LIVE)
 
 The AppTuner shell is pre-compiled. A "build" for an end user is:
-1. User uploads Apple certificate + provisioning profile
-2. AppTuner injects their icon, app name, bundle ID into the shell
-3. Re-signs with their certificate using `fastlane resign` or equivalent
-4. Returns .ipa in ~30 seconds — ready for App Store Connect
+1. User uploads Apple certificate (.p12) + provisioning profile via Build tab in dashboard
+2. AppTuner re-signs the shell IPA using `zsign` on the VPS
+3. Returns signed .ipa in ~3 seconds — ready for TestFlight or App Store Connect
 
-No Mac farm. No cloud Xcode. Nearly zero cost per build.
+- Shell IPA at `/opt/apptuner/AppTunerMobile.ipa` on VPS (volume-mounted into Docker)
+- zsign baked into relay Docker image — survives redeployments
+- No Mac farm. No cloud Xcode. Nearly zero cost per build.
 
 ---
 
@@ -142,9 +141,7 @@ apptuner/
 │   └── commands/
 │       ├── start.ts              # Main development server
 │       ├── stop.ts
-│       ├── status.ts
-│       ├── check.ts              # DEPRECATED — delete when convenient
-│       └── convert.ts            # DEPRECATED — delete when convenient
+│       └── status.ts
 │
 ├── mobile/                       # AppTuner Mobile (RN 0.81.6 / React 19.1.4)
 │   └── src/

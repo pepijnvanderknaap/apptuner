@@ -30,7 +30,6 @@ export async function getRecentProjects(): Promise<RecentProject[]> {
   try {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     const projects = raw ? JSON.parse(raw) : [];
-    console.log('[Storage] Loaded projects:', projects.length);
     return projects;
   } catch (e) {
     console.log('[Storage] Error loading projects:', e);

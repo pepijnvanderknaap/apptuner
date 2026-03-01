@@ -186,6 +186,7 @@ export class RelayConnection {
    * Handle incoming message
    */
   private handleMessage(message: any): void {
+    if (message.type === 'pong') return; // heartbeat — handled internally, no need to log
     console.log('[Relay] Received message:', message.type);
 
     switch (message.type) {
