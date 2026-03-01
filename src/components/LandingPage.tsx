@@ -44,14 +44,15 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* Hero */}
       <section className="hero">
         <div className="container">
-          <div className="hero-eyebrow">Expo alternative · no lock-in</div>
+          <div className="hero-eyebrow">React Native · live remote sharing</div>
           <h1 className="hero-title">
-            Build React Native apps<br />
-            <span>without the Expo tax.</span>
+            Your app, live on<br />
+            <span>anyone's phone.</span>
           </h1>
           <p className="hero-subtitle">
-            Same native modules, same developer experience, instant iOS builds —
-            at less than half the price of EAS. Share your live app with anyone in the world with a 6-character code.
+            Send a 6-character code. Your client opens the AppTuner app, enters the code,
+            and sees your exact dev session — live, on a real device, wherever they are.
+            No build. No TestFlight invite. No waiting.
           </p>
           <div className="hero-cta">
             <button className="btn-primary btn-large" onClick={() => onEnterApp('signup')}>
@@ -69,8 +70,8 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
               <div className="proof-label">iOS IPA build time</div>
             </div>
             <div className="proof-item">
-              <div className="proof-value">$49</div>
-              <div className="proof-label">vs $99/mo on EAS</div>
+              <div className="proof-value">$29</div>
+              <div className="proof-label">per month, all features included</div>
             </div>
           </div>
         </div>
@@ -109,9 +110,9 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       <section id="compare" className="comparison-section">
         <div className="container">
           <div className="section-label dark">Side by side</div>
-          <h2 className="section-title on-dark">AppTuner vs Expo / EAS</h2>
+          <h2 className="section-title on-dark">AppTuner vs the traditional workflow</h2>
           <p className="section-subtitle on-dark">
-            Expo's SDK modules are MIT licensed. We compile them directly into our shell — same modules, same APIs, no rebuilding from scratch.
+            The standard React Native workflow ties you to USB cables, local networks, and slow build queues. AppTuner moves the whole thing to the cloud.
           </p>
 
           <table className="compare-table">
@@ -119,44 +120,39 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
               <tr>
                 <th>Feature</th>
                 <th className="col-apptuner">AppTuner</th>
-                <th>Expo / EAS</th>
+                <th>Standard workflow</th>
               </tr>
             </thead>
             <tbody>
               <tr>
-                <td>Live hot reload</td>
-                <td className="good">✓ Included</td>
-                <td className="good">✓ Included</td>
+                <td>Hot reload on real device</td>
+                <td className="good">✓ Over the internet</td>
+                <td>USB or local WiFi only</td>
               </tr>
               <tr>
-                <td>Pre-built native modules</td>
-                <td className="good">✓ 38 modules</td>
-                <td className="good">✓ ~50 modules</td>
+                <td>Share with remote client</td>
+                <td className="good">✓ 6-character code, instant</td>
+                <td className="bad">TestFlight invite + 15 min wait</td>
               </tr>
               <tr>
                 <td>iOS build (IPA)</td>
                 <td className="good">✓ ~3 seconds</td>
-                <td>10–30 minutes</td>
+                <td className="bad">Xcode required, 10–30 min</td>
               </tr>
               <tr>
-                <td>Monthly price</td>
-                <td className="good">$49 / month</td>
-                <td className="bad">$99 / month</td>
+                <td>Works on Windows / Linux</td>
+                <td className="good">✓ Yes</td>
+                <td className="bad">iOS builds require a Mac</td>
               </tr>
               <tr>
-                <td>Lifetime deal</td>
-                <td className="good">$499 once</td>
-                <td className="bad">Not available</td>
+                <td>Native modules pre-installed</td>
+                <td className="good">✓ 38 modules, no pod install</td>
+                <td className="bad">Manual install per project</td>
               </tr>
               <tr>
-                <td>Vendor lock-in</td>
-                <td className="good">None</td>
-                <td className="bad">EAS ecosystem</td>
-              </tr>
-              <tr>
-                <td>Bare React Native support</td>
-                <td className="good">✓ First-class</td>
-                <td>Managed workflow preferred</td>
+                <td>Price</td>
+                <td className="good">$29 / month</td>
+                <td>Mac + Apple dev account + time</td>
               </tr>
             </tbody>
           </table>
@@ -302,7 +298,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
             <div className="pricing-card">
               <div className="plan-name">Monthly</div>
               <div className="plan-price">
-                <span className="amount">$49</span>
+                <span className="amount">$29</span>
                 <span className="period">/ month</span>
               </div>
               <div className="plan-desc">Cancel anytime</div>
@@ -316,7 +312,7 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
               <button className="btn-outline-dark" onClick={() => handleCheckout('monthly')}>
                 Get started
               </button>
-              <div className="affiliate-note">Affiliates earn 30% recurring</div>
+              <div className="affiliate-note">Affiliates earn $8.70/mo per customer</div>
             </div>
 
             <div className="pricing-card featured">
@@ -381,8 +377,8 @@ export function LandingPage({ onEnterApp }: { onEnterApp: (view?: 'login' | 'sig
       {/* Final CTA */}
       <section className="final-cta">
         <div className="container">
-          <h2>Ready to switch from EAS?</h2>
-          <p>14-day free trial. No credit card required. Cancel or keep — your call.</p>
+          <h2>Your first live share is 60 seconds away.</h2>
+          <p>14-day free trial. No credit card required. Cancel anytime.</p>
           <button className="btn-white btn-large" onClick={() => onEnterApp('signup')}>
             Start free trial
           </button>
